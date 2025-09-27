@@ -752,12 +752,12 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying }: { item: any, 
     >
       <motion.div 
         onClick={onClick} 
-        className={`relative aspect-[3/4] bg-gradient-to-b from-gray-200 to-gray-300 rounded-lg shadow-md transform transition-all duration-200 ${
+        className={`relative bg-background transform transition-all duration-200 ${
           isDragging 
             ? 'scale-110 rotate-2 shadow-2xl' 
             : isOver 
               ? 'scale-105 rotate-1' 
-              : 'group-hover:scale-105 group-hover:rotate-1 group-hover:brightness-75'
+              : 'group-hover:scale-105 group-hover:rotate-1'
         }`}
         animate={isCurrentlyPlaying ? {
           y: [-12, 12, -12],
@@ -770,7 +770,7 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying }: { item: any, 
         } : {
           y: 0,
           scale: 1,
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          boxShadow: 'none'
         }}
         transition={isCurrentlyPlaying ? {
           duration: 3,
@@ -829,16 +829,16 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying }: { item: any, 
           <img 
             src={item.image_url} 
             alt={item.title}
-            className="w-full h-full object-cover rounded-lg"
+            className="w-full aspect-square object-cover rounded-lg"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-b from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
-            <div className="text-gray-500 text-xs text-center p-2">
+          <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
+            <div className="text-muted-foreground text-xs text-center p-2">
               {item.title}
             </div>
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 bg-white text-black px-2 py-1 rounded-b-lg">
+        <div className="mt-1 px-2 py-1">
           <div className="text-xs font-medium truncate">{item.title}</div>
           <div className="text-xs text-muted-foreground truncate">{item.artist}</div>
         </div>
