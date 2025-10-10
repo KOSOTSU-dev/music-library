@@ -45,6 +45,7 @@ export default function GlobalPlayer({ currentShelfItems = [], onShelfItemsChang
         uri: `spotify:track:${id}`
       })
       setIsPlaying(true)
+      setPlaybackProgress(0)
       
       // フレンドの棚から再生した場合は、その棚の楽曲リストを設定
       if (shelfItems && Array.isArray(shelfItems)) {
@@ -52,9 +53,25 @@ export default function GlobalPlayer({ currentShelfItems = [], onShelfItemsChang
       }
     }
 
+    const handlePlayerPause = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = (session as any)?.provider_token || (session as any)?.providerToken
+        if (accessToken) {
+          await fetch('https://api.spotify.com/v1/me/player/pause', {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          })
+        }
+      } catch {}
+      setIsPlaying(false)
+    }
+
     window.addEventListener('track:playing', handleTrackPlaying as EventListener)
+    window.addEventListener('player:pause', handlePlayerPause as EventListener)
     return () => {
       window.removeEventListener('track:playing', handleTrackPlaying as EventListener)
+      window.removeEventListener('player:pause', handlePlayerPause as EventListener)
     }
   }, [setCurrentTrack, setIsPlaying, setCurrentShelfItems])
 
@@ -207,16 +224,16 @@ export default function GlobalPlayer({ currentShelfItems = [], onShelfItemsChang
   if (!currentTrack) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 p-4">
-      <div className="flex items-center gap-4 max-w-screen-lg mx-auto">
-        {/* 左側: 曲情報 */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+    <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 py-3 pl-4 pr-0 text-white">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center w-full">
+        {/* 左側: 曲情報（左端寄せ） */}
+        <div className="flex items-center gap-4 min-w-0 justify-self-start">
           <img 
             src={currentTrack.album?.images?.[0]?.url || '/placeholder-album.png'} 
             alt={currentTrack.name}
-            className="w-12 h-12 rounded object-cover"
+            className="w-20 h-20 rounded object-cover"
           />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <div className="text-white font-medium truncate">{currentTrack.name}</div>
             <div className="text-gray-400 text-sm truncate">
               {currentTrack.artists?.map((a: any) => a.name).join(', ')}
@@ -224,30 +241,32 @@ export default function GlobalPlayer({ currentShelfItems = [], onShelfItemsChang
           </div>
         </div>
 
-        {/* 中央: コントロール */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white" onClick={handleShelfPrevious}>
-              <SkipBack className="h-5 w-5" />
+        {/* 中央: コントロール（中央固定） */}
+        <div className="flex flex-col items-center gap-2 justify-self-center">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="text-gray-300 hover:bg-white hover:text-black h-11 w-11 rounded-full" onClick={handleShelfPrevious}>
+              <SkipBack className="h-7 w-7" fill="currentColor" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="bg-white text-black hover:bg-gray-200"
+              className="text-white hover:bg-white hover:text-black h-12 w-12 rounded-full [&>svg]:!h-[1.6rem] [&>svg]:!w-[1.6rem]"
               onClick={handleGlobalPlayPause}
             >
-              {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+              {isPlaying 
+                ? <Pause fill="currentColor" />
+                : <Play fill="currentColor" />}
             </Button>
-            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white" onClick={handleShelfNext}>
-              <SkipForward className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="text-gray-300 hover:bg-white hover:text-black h-11 w-11 rounded-full" onClick={handleShelfNext}>
+              <SkipForward className="h-7 w-7" fill="currentColor" />
             </Button>
           </div>
           
           {/* プログレスバー */}
           <div className="flex items-center gap-2 w-64">
-            <span className="text-xs text-gray-400 w-8">{formatTime(playbackProgress)}</span>
+            <span className="text-xs text-gray-300 w-8">{formatTime(playbackProgress)}</span>
             <div 
-              className="flex-1 bg-gray-600 rounded-full h-1 cursor-pointer hover:bg-gray-500 transition-colors relative"
+              className="flex-1 bg-gray-700 rounded-full h-1 cursor-pointer hover:bg-gray-600 transition-colors relative"
               onClick={handleProgressBarClick}
             >
               <div 
@@ -255,12 +274,12 @@ export default function GlobalPlayer({ currentShelfItems = [], onShelfItemsChang
                 style={{ width: `${(playbackProgress / (currentTrack.duration_ms || 1)) * 100}%` }}
               />
             </div>
-            <span className="text-xs text-gray-400 w-8">{formatTime(currentTrack.duration_ms || 0)}</span>
+            <span className="text-xs text-gray-300 w-8">{formatTime(currentTrack.duration_ms || 0)}</span>
           </div>
         </div>
 
-        {/* 右側: 音量など（将来の拡張用） */}
-        <div className="flex-1" />
+        {/* 右側: 余白（バランス用） */}
+        <div className="justify-self-end" />
       </div>
     </div>
   )

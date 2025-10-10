@@ -37,6 +37,36 @@ export async function createShelf(formData: FormData) {
   return { shelf: data }
 }
 
+export async function updateShelf(formData: FormData) {
+  const id = String(formData.get("id") || "")
+  const name = String(formData.get("name") || "").trim()
+  
+  if (!id || !name) {
+    return { error: "棚名を入力してください" }
+  }
+
+  const supabase = await getServerSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    throw new Error("未認証です")
+  }
+
+  const { error, data } = await supabase
+    .from("shelves")
+    .update({ name })
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('id, name, created_at, sort_order')
+    .single()
+
+  if (error) {
+    console.error('Error updating shelf:', error)
+    return { error: "棚名の更新に失敗しました" }
+  }
+
+  return { shelf: data }
+}
+
 export async function deleteShelf(formData: FormData) {
   const id = String(formData.get('id') || '')
   if (!id) throw new Error('棚IDが不正です')
@@ -247,7 +277,6 @@ export async function reorderShelves(formData: FormData) {
 
   if (error) return { error: error.message }
 
-  revalidatePath('/app')
   return { success: true }
 }
 

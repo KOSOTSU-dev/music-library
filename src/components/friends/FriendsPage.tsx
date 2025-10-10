@@ -683,34 +683,6 @@ export default function FriendsPage() {
                       <Wand2 className="h-4 w-4 mr-2" />
                       仮想フレンド申請を作成
                     </Button>
-                    <Button 
-                      onClick={handleUpdateVirtualFriendImages} 
-                      disabled={isLoading}
-                      variant="outline"
-                    >
-                      画像URL更新
-                    </Button>
-                    <Button 
-                      onClick={handleAddShelvesToVirtualFriends} 
-                      disabled={isLoading}
-                      variant="outline"
-                    >
-                      棚追加
-                    </Button>
-                    <Button 
-                      onClick={handleFixVirtualFriendTracks} 
-                      disabled={isLoading}
-                      variant="outline"
-                    >
-                      楽曲修正
-                    </Button>
-                    <Button 
-                      onClick={handleFixFriendTracksWithSearch} 
-                      disabled={isLoading}
-                      variant="outline"
-                    >
-                      楽曲検索修正
-                    </Button>
                   </div>
                 </div>
               ) : (

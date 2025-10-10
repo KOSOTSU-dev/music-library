@@ -210,7 +210,7 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_shelves_updated_at BEFORE UPDATE ON public.shelves
+CREATE TRIGGER update_shelves_updated_at BEFORE UPDATEimage.png ON public.shelves
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON public.comments

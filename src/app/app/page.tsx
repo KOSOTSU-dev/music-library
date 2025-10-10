@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
@@ -9,9 +9,13 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
-import { Share2, GripVertical, MessageCircle, Trash2, ExternalLink, Copy, StickyNote, Heart, Link as LinkIcon } from "lucide-react"
+import { Share2, GripVertical, MessageCircle, Trash2, ExternalLink, Copy, StickyNote, Heart, Link as LinkIcon, Users, Settings, Music, PanelLeftClose, PanelLeftOpen, Plus, Pen, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import GlobalPlayer from "@/components/GlobalPlayer"
+import { Toaster } from "@/components/ui/toaster"
+import { SpotifyReauthAction } from "@/components/ui/toast"
+import { showSpotifyReauthToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useGlobalPlayer } from "@/hooks/useGlobalPlayer"
 import { signOut } from "@/lib/auth"
 import { createShelf, reorderShelves, updateShelfItemMemo } from "./actions"
@@ -27,10 +31,10 @@ import {
   useSensors,
   DragEndEvent,
 } from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import {
   arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   rectSortingStrategy,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
@@ -39,8 +43,9 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-function ShelfCreateForm() {
+function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
   const [pending, setPending] = useState(false)
+  const [expand, setExpand] = useState(false)
   
   const handleSubmit = async (formData: FormData) => {
     setPending(true)
@@ -61,26 +66,80 @@ function ShelfCreateForm() {
   }
 
   return (
-    <form action={handleSubmit} className="mt-4 flex gap-2">
-      <input name="name" placeholder="新しい棚名" className="flex-1 border rounded px-2 py-1 text-base" />
-      <Button type="submit" size="sm" disabled={pending}>
+    <div className="mt-2">
+      {compact ? (
+        <>
+          <div className="flex justify-center mt-2">
+            <button type="button" className="w-9 h-9 rounded-full bg-black text-white grid place-items-center hover:bg-gray-900" onClick={() => setExpand(true)} aria-label="棚を作成">
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
+          <Dialog open={expand} onOpenChange={setExpand}>
+            <DialogContent className="sm:max-w-[360px]">
+              <DialogHeader>
+                <DialogTitle>棚を作成</DialogTitle>
+              </DialogHeader>
+              <form action={handleSubmit} className="flex gap-2">
+                <input name="name" placeholder="新しい棚名" className="flex-1 rounded px-2 py-1 text-base bg-black text-white outline-none" />
+                <Button type="submit" size="sm" disabled={pending} className="text-white" style={{ backgroundColor: '#333333' }}>
         {pending ? '作成中...' : '作成'}
       </Button>
     </form>
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : (
+        <form action={handleSubmit} className="flex items-center gap-2">
+          {/* expanding input */}
+          <div className={`transition-all duration-300 ease-out overflow-hidden ${expand ? 'w-64 sm:w-80 opacity-100' : 'w-0 opacity-0'} `}>
+            <input
+              name="name"
+              placeholder="新しい棚名"
+              className="w-full rounded px-3 py-2 text-base bg-black text-white outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setExpand(false)
+              }}
+              autoFocus={expand}
+            />
+          </div>
+          {/* toggle/create button */}
+          <button
+            type="button"
+            onClick={() => setExpand((v) => !v)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white transition-colors"
+            style={{ backgroundColor: '#333333' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
+            aria-label={expand ? '作成を閉じる' : '作成を開く'}
+          >
+            <span className={`inline-block transition-transform duration-300 ${expand ? 'rotate-45' : 'rotate-0'}`}>＋</span>
+            <span>作成</span>
+          </button>
+        </form>
+      )}
+    </div>
   )
 }
 
 export default function AppHome() {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [currentShelfItems, setCurrentShelfItems] = useState<any[]>([])
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0)
+  const [needsReauth, setNeedsReauth] = useState(false)
   const [shelves, setShelves] = useState<Shelf[]>([])
   const [selectedShelfId, setSelectedShelfId] = useState<string | null>(null)
+  const [compactShelves, setCompactShelves] = useState<boolean>(false)
   const router = useRouter()
   const { currentTrack, setCurrentShelfItems: setGlobalShelfItems } = useGlobalPlayer()
 
   useEffect(() => {
+    // compact mode restore
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('ui:compact-shelves')
+      if (v === '1') setCompactShelves(true)
+    }
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -96,6 +155,40 @@ export default function AppHome() {
     }
     init()
   }, [router])
+
+  useEffect(() => {
+    // restore persisted flag
+    if (typeof window !== 'undefined') {
+      const f = localStorage.getItem('spotify:reauth-required')
+      if (f === '1') setNeedsReauth(true)
+    }
+    const onRequire = () => {
+      setNeedsReauth(true)
+      try { localStorage.setItem('spotify:reauth-required', '1') } catch {}
+    }
+    const onCleared = () => {
+      setNeedsReauth(false)
+      try { localStorage.removeItem('spotify:reauth-required') } catch {}
+    }
+    const onSettingsOpen = async () => {
+      // 画面遷移時に有効トークンがあるなら消す
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = (session as any)?.provider_token || (session as any)?.providerToken
+        if (token) {
+          onCleared()
+        }
+      } catch {}
+    }
+    window.addEventListener('spotify:reauth-required', onRequire as EventListener)
+    window.addEventListener('spotify:reauth-cleared', onCleared as EventListener)
+    window.addEventListener('route:settings-open', onSettingsOpen as EventListener)
+    return () => {
+      window.removeEventListener('spotify:reauth-required', onRequire as EventListener)
+      window.removeEventListener('spotify:reauth-cleared', onCleared as EventListener)
+      window.removeEventListener('route:settings-open', onSettingsOpen as EventListener)
+    }
+  }, [])
 
 
   if (loading) {
@@ -203,25 +296,36 @@ export default function AppHome() {
   }
 
   return (
-    <div className="relative min-h-screen">
-      <main className="p-4 pb-24">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Music Library</h1>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="relative">
+    <div className="relative min-h-screen bg-black">
+      <main className="px-4 pt-3 pb-20">
+        <div className="flex justify-between items-center mb-3">
+          <h1 className="text-2xl font-bold text-white">Music Library</h1>
+          <div className="flex items-center gap-3">
+            <Button asChild variant="ghost" size="icon" className="relative group text-white hover:text-gray-200 hover:scale-110 hover:bg-transparent transition-all duration-200 [&>svg]:!h-[1.6rem] [&>svg]:!w-[1.6rem]">
               <Link href="/app/friends">
-                フレンド
+                <Users />
                 {pendingFriendRequests > 0 && (
                   <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs">
                     {pendingFriendRequests}
                   </Badge>
                 )}
+                <span className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-transparent">
+                  フレンド
+                </span>
               </Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href="/app/settings">設定</Link>
+            <Button asChild variant="ghost" size="icon" className="group relative text-white hover:text-gray-200 hover:scale-110 hover:bg-transparent transition-all duration-200 [&>svg]:!h-[1.6rem] [&>svg]:!w-[1.6rem]">
+              <Link href="/app/settings" onClick={() => window.dispatchEvent(new CustomEvent('route:settings-open'))}>
+                <Settings />
+                {needsReauth && (
+                  <span className="absolute -top-1 -right-1 inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                )}
+                <span className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-transparent">
+                  設定
+                </span>
+              </Link>
             </Button>
-            <Link href="/app/friends?tab=mypage" className="ml-0.75">
+            <Link href="/app/friends?tab=mypage" className="ml-1.5">
               <Avatar className="h-10 w-10 cursor-pointer transition-all duration-200 hover:scale-110 hover:shadow-lg hover:ring-2 hover:ring-blue-400 hover:ring-opacity-50">
                 <AvatarImage src={user?.user_metadata?.picture || user?.user_metadata?.avatar_url} />
                 <AvatarFallback>
@@ -232,41 +336,60 @@ export default function AppHome() {
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-4">
+        <div className={`${compactShelves ? 'grid grid-cols-[64px_1fr]' : 'grid grid-cols-12'} gap-2`}>
           {/* Left: Shelves */}
-          <aside className="col-span-3 p-3 border rounded-lg">
-            <h2 className="font-semibold mb-3">棚</h2>
+          <aside className={`${compactShelves ? '' : 'col-span-3'} ${compactShelves ? 'px-2 py-3' : 'p-3'} rounded-md h-[calc(100vh-5rem)] overflow-y-auto`} style={{ backgroundColor: '#1a1a1a', width: compactShelves ? 64 : undefined }}>
+            <div className="flex items-center justify-between mb-3">
+              {!compactShelves && <h2 className="font-semibold text-white">マイギャラリー</h2>}
+              <button
+                type="button"
+                className="text-base px-0 py-0 flex items-center gap-2 transition-colors"
+                style={{ color: '#b3b3b3' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ffffff' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
+                onClick={() => {
+                  setCompactShelves(v => {
+                    const nv = !v
+                    try { localStorage.setItem('ui:compact-shelves', nv ? '1' : '0') } catch {}
+                    return nv
+                  })
+                }}
+                aria-label="サイドバー幅切替"
+                title={compactShelves ? '通常表示にする' : '細い表示にする'}
+              >
+                {compactShelves ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+              </button>
+            </div>
             <ShelfList 
               shelves={shelves}
               setShelves={setShelves}
               selectedShelfId={selectedShelfId}
               setSelectedShelfId={setSelectedShelfId}
+              compact={compactShelves}
               onShelfSelect={(id) => {
                 const event = new CustomEvent('shelf:selected', { detail: { shelfId: id } })
                 window.dispatchEvent(event)
               }} 
             />
-            <ShelfCreateForm />
+            <ShelfCreateForm compact={compactShelves} />
           </aside>
 
-          {/* Center: Shelf View */}
-          <section className="col-span-6 p-3 border rounded-lg min-h-[300px]">
-            <h2 className="font-semibold mb-3 flex items-center gap-2">
-              <span>{selectedShelfId ? shelves.find(s => s.id === selectedShelfId)?.name || '棚ビュー' : '棚ビュー'}</span>
-              <span className="text-sm text-muted-foreground">{currentShelfItems.length} 件のアイテム</span>
+          {/* Center: Shelf View with Search */}
+          <section className={`${compactShelves ? '' : 'col-span-9'} pt-1 pr-3 pb-3 pl-3 min-h-[300px] rounded-md`} style={{ backgroundColor: '#1a1a1a' }}>
+            <div className="flex justify-between items-start mb-3 mt-2">
+              <h2 className="font-semibold flex items-baseline gap-4 flex-1 min-w-0">
+                <span className="text-6xl font-semibold truncate text-white">{selectedShelfId ? shelves.find(s => s.id === selectedShelfId)?.name || '棚ビュー' : '棚ビュー'}</span>
+            <span className="text-base text-muted-foreground flex-shrink-0">{currentShelfItems.length} 曲</span>
             </h2>
-            <ShelfView onShelfItemsChange={setCurrentShelfItems} currentTrack={currentTrack} />
-          </section>
-
-          {/* Right: Search */}
-          <aside className="col-span-3 p-3 border rounded-lg min-h-[300px]">
-            <h2 className="font-semibold mb-3">検索</h2>
             <SearchPanel />
-          </aside>
+            </div>
+            <ShelfView onShelfItemsChange={setCurrentShelfItems} currentTrack={currentTrack} toast={toast} />
+          </section>
         </div>
       </main>
 
       <GlobalPlayer currentShelfItems={currentShelfItems} onShelfItemsChange={setGlobalShelfItems} />
+      <Toaster />
     </div>
   )
 }
@@ -276,20 +399,89 @@ function ShelfList({
   setShelves, 
   selectedShelfId, 
   setSelectedShelfId, 
-  onShelfSelect 
+  onShelfSelect,
+  compact
 }: { 
   shelves: Shelf[]
   setShelves: (shelves: Shelf[]) => void
   selectedShelfId: string | null
   setSelectedShelfId: (id: string | null) => void
-  onShelfSelect: (id: string) => void 
+  onShelfSelect: (id: string) => void,
+  compact: boolean
 }) {
+  const [icons, setIcons] = useState<Record<string, string>>({})
+  const [counts, setCounts] = useState<Record<string, number>>({})
+
+  // load icons from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('shelf:icons')
+      if (raw) setIcons(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  const setIcon = (id: string, url: string) => {
+    setIcons(prev => {
+      const next = { ...prev, [id]: url }
+      try { localStorage.setItem('shelf:icons', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  // load item counts per shelf
+  useEffect(() => {
+    const loadCounts = async () => {
+      const entries = await Promise.all(
+        (shelves || []).map(async (s) => {
+          try {
+            const { count } = await supabase
+              .from('shelf_items')
+              .select('*', { head: true, count: 'exact' })
+              .eq('shelf_id', s.id)
+            return [s.id, count || 0] as const
+          } catch {
+            return [s.id, 0] as const
+          }
+        })
+      )
+      const map: Record<string, number> = {}
+      for (const [id, c] of entries) map[id] = c
+      setCounts(map)
+    }
+    if (shelves.length) {
+      void loadCounts()
+    }
+  }, [shelves])
+
+  // 棚名の更新イベントをリッスン
+  useEffect(() => {
+    const handleShelfUpdate = (e: CustomEvent) => {
+      const { shelfId, newName } = e.detail
+      // 既存順序を維持したまま名称のみ置換
+      setShelves(prevShelves => {
+        return prevShelves.map(shelf =>
+          shelf.id === shelfId ? { ...shelf, name: newName } : shelf
+        )
+      })
+    }
+
+    window.addEventListener('shelf:updated', handleShelfUpdate as EventListener)
+    return () => {
+      window.removeEventListener('shelf:updated', handleShelfUpdate as EventListener)
+    }
+  }, [setShelves])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { 
+        distance: 8,
+        delay: 100,
+        tolerance: 5
+      },
     }),
-    useSensor(KeyboardSensor)
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
   )
 
   useEffect(() => {
@@ -313,7 +505,7 @@ function ShelfList({
     }
     window.addEventListener('shelf:added', onAdded)
     return () => window.removeEventListener('shelf:added', onAdded)
-  }, [selectedShelfId, onShelfSelect])
+  }, [])
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -322,6 +514,12 @@ function ShelfList({
       setShelves((shelves) => {
         const oldIndex = shelves.findIndex((shelf) => shelf.id === active.id)
         const newIndex = shelves.findIndex((shelf) => shelf.id === over?.id)
+        
+        // 縦方向の移動のみ許可（インデックスの順序が変わっているかチェック）
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+          return shelves
+        }
+        
         const newShelves = arrayMove(shelves, oldIndex, newIndex)
         
         // サーバーに並び順を保存
@@ -339,19 +537,31 @@ function ShelfList({
     }
   }
 
+  const handleDragMove = (event: any) => {
+    // 横方向のドラッグを制限（ドロップ位置計算には影響しないよう調整）
+    if (event.delta && event.delta.x !== 0) {
+      event.delta.x = 0
+    }
+  }
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
+      onDragMove={handleDragMove}
     >
       <SortableContext items={shelves.map(shelf => shelf.id)} strategy={verticalListSortingStrategy}>
-        <ul className="space-y-1">
+        <ul className={`space-y-1 ${compact ? 'flex flex-col items-center' : ''}`}>
           {shelves.map((shelf) => (
             <SortableShelfItem
               key={shelf.id}
               shelf={shelf}
               isSelected={selectedShelfId === shelf.id}
+              iconUrl={icons[shelf.id]}
+              onIconChange={setIcon}
+              compact={compact}
+              count={counts[shelf.id] || 0}
               onSelect={() => {
                 setSelectedShelfId(shelf.id)
                 onShelfSelect(shelf.id)
@@ -378,13 +588,78 @@ function SortableShelfItem({
   shelf, 
   isSelected, 
   onSelect, 
-  onDelete 
+  onDelete,
+  compact,
+  iconUrl,
+  onIconChange,
+  count
 }: { 
   shelf: { id: string; name: string; sort_order: number }
   isSelected: boolean
   onSelect: () => void
   onDelete: () => void
+  compact: boolean
+  iconUrl?: string
+  onIconChange: (id: string, url: string) => void
+  count: number
 }) {
+  const [showButtons, setShowButtons] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isEditingIcon, setIsEditingIcon] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editName, setEditName] = useState(shelf.name)
+  const [lastEnterTime, setLastEnterTime] = useState(0)
+
+  const handleEdit = async () => {
+    if (editName.trim() === '') return
+
+    const fd = new FormData()
+    fd.set('id', shelf.id)
+    fd.set('name', editName.trim())
+
+    try {
+      const { updateShelf } = await import('./actions')
+      const result = await updateShelf(fd)
+      if (result?.shelf) {
+        // 棚名を更新
+        shelf.name = result.shelf.name
+        setIsEditing(false)
+        setIsEditingIcon(false)
+        // 親コンポーネントに変更を通知
+        window.dispatchEvent(new CustomEvent('shelf:updated', {
+          detail: { shelfId: shelf.id, newName: result.shelf.name, sortOrder: (result as any)?.shelf?.sort_order }
+        }))
+      }
+    } catch (error) {
+      console.error('棚名の更新に失敗しました:', error)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 日本語IMEの変換確定Enterは無視
+    const anyEvt = e.nativeEvent as any
+    if (anyEvt?.isComposing) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      const now = Date.now()
+      // 500ms以内の連続Enterで確定
+      if (now - lastEnterTime < 500) {
+        handleEdit()
+        setLastEnterTime(0)
+      } else {
+        setLastEnterTime(now)
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsEditing(false)
+      setIsEditingIcon(false)
+      setEditName(shelf.name)
+      setLastEnterTime(0)
+    }
+  }
+
   const {
     attributes,
     listeners,
@@ -395,33 +670,217 @@ function SortableShelfItem({
   } = useSortable({ id: shelf.id })
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    // 横方向の移動を制限（縦方向のみ）
+    transform: isDragging ? `translateY(${transform?.y || 0}px)` : CSS.Transform.toString(transform),
+    transition: compact ? 'background-color 120ms ease' : 'background-color 120ms ease',
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const triggerIconUpload = () => {
+    if (!isEditingIcon) return
+    const input = document.getElementById(`icon-input-${shelf.id}`) as HTMLInputElement | null
+    input?.click()
+  }
+
+  const handleIconFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '')
+      onIconChange(shelf.id, dataUrl)
+    }
+    reader.readAsDataURL(file)
+    // reset value to allow re-selecting same file later
+    e.target.value = ''
+  }
+
+  // 行外クリックで編集終了
+  const rowRef = useRef<HTMLLIElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!isEditing) return
+    const onDown = (e: MouseEvent) => {
+      if (!rowRef.current) return
+      const target = e.target as Node
+      if (!rowRef.current.contains(target)) {
+        setIsEditing(false)
+        setIsEditingIcon(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [isEditing])
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    if (!showButtons) return
+    const onDocDown = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setShowButtons(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocDown)
+    return () => document.removeEventListener('mousedown', onDocDown)
+  }, [showButtons])
+
   return (
     <li 
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center justify-between text-base px-2 py-1 rounded hover:bg-muted cursor-grab active:cursor-grabbing ${isSelected ? 'bg-muted' : ''}`}
+      ref={(el) => { setNodeRef(el as any); rowRef.current = el }}
+      style={{ 
+        ...style,
+        backgroundColor: compact && isSelected ? 'transparent' : (isSelected ? '#2a2a2a' : 'transparent'),
+        // 横方向の移動を制限
+        transform: isDragging ? `translateY(${transform?.y || 0}px)` : CSS.Transform.toString(transform)
+      }}
+      className={`flex items-center justify-between ${compact ? 'px-1 py-1' : 'px-2 py-1'} text-base rounded cursor-grab active:cursor-grabbing`}
+      data-shelf-selected={isSelected}
+      data-shelf-id={shelf.id}
       {...attributes}
       {...listeners}
     >
-      <div className="flex items-center gap-2 flex-1" onClick={onSelect}>
-        <span className="flex-1">{shelf.name}</span>
+      <div className={`flex items-center ${compact ? 'gap-0.5' : 'gap-2'} flex-1`} onClick={onSelect} title={compact ? shelf.name : undefined}>
+        {/* Icon/avatar */}
+        <div className={`shrink-0 relative group ${compact && isSelected ? 'ring-2 ring-white rounded-full' : ''} ${compact ? 'hover:scale-110 transition-transform duration-200 ease-out' : ''}`}>
+          {iconUrl ? (
+            <img src={iconUrl} alt="" className={`${compact ? 'h-9 w-9' : 'h-8 w-8'} rounded-full object-cover ${isEditingIcon ? 'cursor-pointer' : ''}`} onClick={triggerIconUpload} />
+          ) : (
+            <div className={`${compact ? 'h-9 w-9' : 'h-8 w-8'} rounded-full grid place-items-center text-white ${isEditingIcon ? 'cursor-pointer' : ''}`} style={{ backgroundColor: '#696969', fontSize: compact ? '12px' : '14px' }} onClick={triggerIconUpload}>{shelf.name?.[0] || '棚'}</div>
+          )}
+          {isEditingIcon && (
+            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Pen className="h-3 w-3 text-white" />
       </div>
-      <form
+          )}
+          {/* コンパクト時: ホバーで右下にペンボタン（モーダル起動） */}
+          {compact && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowEditModal(true) }}
+              className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 grid place-items-center"
+              aria-label="編集"
+            >
+              <Pen className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        <input id={`icon-input-${shelf.id}`} type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
+        {!compact && (
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => { setEditName(e.target.value); setLastEnterTime(0) }}
+                onKeyDown={handleKeyPress}
+                onBlur={handleEdit}
+                className="w-full bg-transparent border-none outline-none text-white text-base font-medium truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px] lg:max-w-[240px] xl:max-w-[280px] 2xl:max-w-[320px] h-5 leading-5 py-0"
+                autoFocus
         onClick={(e) => e.stopPropagation()}
-        action={async () => {
+                style={{ fontFamily: 'inherit' }}
+              />
+            ) : (
+              <div className="truncate text-white max-w-[120px] sm:max-w-[160px] md:max-w-[200px] lg:max-w-[240px] xl:max-w-[280px] 2xl:max-w-[320px] h-5 leading-5" style={{ fontFamily: 'inherit' }}>{shelf.name}</div>
+            )}
+            <div className="text-xs text-muted-foreground">{count} 曲</div>
+          </div>
+        )}
+      </div>
+      
+      {!isEditing && !compact && (
+        <div className="relative" ref={menuRef}>
+          {showButtons && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="absolute right-0 top-full mt-1 z-10 py-0 min-w-[60px] rounded-sm overflow-hidden"
+              style={{ backgroundColor: '#333333' }}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Edit button clicked')
+                  setIsEditing(true)
+                  setIsEditingIcon(true)
+                  setShowButtons(false)
+                }}
+                className="w-full px-2 py-1 text-sm text-white bg-transparent hover:!bg-[#4d4d4d] transition-colors hover:rounded-t-sm"
+              >
+                編集
+              </button>
+              <div className="border-t" style={{ borderColor: '#1a1a1a' }}></div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Delete button clicked')
           if (!confirm('この棚を削除しますか？この操作は取り消せません。')) return
           onDelete()
-        }}
-      >
-        <Button type="submit" size="sm" variant="ghost" className="h-6 px-2 text-red-500">
-          削除
-        </Button>
-      </form>
+                  setShowButtons(false)
+                }}
+                className="w-full px-2 py-1 text-sm text-white bg-transparent hover:!bg-red-600 transition-colors hover:rounded-b-sm"
+              >
+                削除
+              </button>
+            </motion.div>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              console.log('Dropdown button clicked, toggling buttons')
+              setShowButtons(!showButtons)
+            }}
+            className="p-2 text-white hover:bg-gray-800 rounded transition-colors"
+            aria-label="メニューを開く"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showButtons ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+      )}
+      {/* コンパクト時のみの編集モーダル */}
+      {compact && (
+        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+          <DialogContent className="sm:max-w-[420px] bg-black border-none">
+            <DialogHeader>
+              <DialogTitle className="text-white">棚を編集</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="relative group">
+                {iconUrl ? (
+                  <img src={iconUrl} alt="" className="h-16 w-16 rounded-full object-cover cursor-pointer" onClick={(e) => { e.preventDefault(); triggerIconUpload() }} />
+                ) : (
+                  <div className="h-16 w-16 rounded-full grid place-items-center text-white cursor-pointer" style={{ backgroundColor: '#696969' }} onClick={(e) => { e.preventDefault(); triggerIconUpload() }}>{shelf.name?.[0] || '棚'}</div>
+                )}
+                <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  <Pen className="h-4 w-4 text-white" />
+                </div>
+                <input id={`icon-input-${shelf.id}`} type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
+              </div>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { handleEdit(); setShowEditModal(false) } }}
+                className="flex-1 border-none rounded px-2 py-1 text-white outline-none"
+                style={{ backgroundColor: '#1a1a1a' }}
+                placeholder="棚名"
+                autoFocus
+              />
+            </div>
+            <DialogFooter className="justify-between">
+              <Button onClick={() => { handleEdit(); setShowEditModal(false) }} className="text-white" style={{ backgroundColor: '#333333' }}>保存</Button>
+              <Button variant="destructive" onClick={() => { if (confirm('この棚を削除しますか？この操作は取り消せません。')) { onDelete(); setShowEditModal(false) } }}>削除</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </li>
   )
 }
@@ -430,23 +889,25 @@ function SearchPanel() {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<any[]>([])
   const [adding, setAdding] = useState<string | null>(null)
-  const [shelves, setShelves] = useState<Array<{ id: string; name: string }>>([])
-  const [selectedShelfId, setSelectedShelfId] = useState<string>("")
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
+  // ドロップダウン外をクリックした時に閉じる
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('shelves')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-      setShelves(data || [])
-      if (data?.[0]) setSelectedShelfId(data[0].id)
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('.search-dropdown')) {
+        setIsDropdownOpen(false)
+      }
     }
-    load()
-  }, [])
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isDropdownOpen])
 
   async function onSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -470,13 +931,31 @@ function SearchPanel() {
       type: 'track',
     }))
     setResults(list)
+    setIsDropdownOpen(true)
   }
 
   async function addToShelf(r: any) {
+    console.log('addToShelf called for:', r.name)
     setAdding(r.id)
-    if (!selectedShelfId) { setAdding(null); return }
+    
+    // 現在選択されている棚を取得
+    const currentShelf = document.querySelector('[data-shelf-selected="true"]')
+    console.log('currentShelf found:', currentShelf)
+    if (!currentShelf) { 
+      console.log('No shelf selected')
+      setAdding(null)
+      return 
+    }
+    const shelfId = currentShelf.getAttribute('data-shelf-id')
+    console.log('shelfId:', shelfId)
+    if (!shelfId) { 
+      console.log('No shelfId found')
+      setAdding(null)
+      return 
+    }
+    
     const fd = new FormData()
-    fd.set('shelfId', selectedShelfId)
+    fd.set('shelfId', shelfId)
     fd.set('spotifyType', 'track')
     fd.set('spotifyId', r.id)
     fd.set('title', r.name)
@@ -490,57 +969,52 @@ function SearchPanel() {
     if (res?.item) {
       // 中央の棚ビューへ反映するイベント発火（shelf_idを含める）
       window.dispatchEvent(new CustomEvent('shelf:item-added', { 
-        detail: { ...res.item, shelf_id: selectedShelfId } 
+        detail: { ...res.item, shelf_id: shelfId } 
       }))
+      // ドロップダウンを閉じる
+      setIsDropdownOpen(false)
     }
   }
 
   return (
-    <div className="space-y-3">
-      <form onSubmit={onSearch} className="space-y-2">
+    <div className="relative search-dropdown">
+      <form onSubmit={onSearch}>
         <div className="flex gap-2">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="キーワードを検索"
-            className="flex-1 border rounded px-2 py-1 text-base"
+            placeholder="追加したい曲名を入力"
+            className="border rounded px-2 py-1 text-base w-64 bg-black text-white border-gray-600"
           />
-          <Button type="submit" size="sm">検索</Button>
+          <Button type="submit" size="sm" className="text-white hover:!bg-[#4d4d4d]" style={{ backgroundColor: '#333333' }}>検索</Button>
         </div>
-        <select
-          value={selectedShelfId}
-          onChange={(e) => setSelectedShelfId(e.target.value)}
-          className="w-full border rounded px-2 py-1 text-base"
-        >
-          <option value="">棚を選択</option>
-          {shelves.map((shelf) => (
-            <option key={shelf.id} value={shelf.id}>{shelf.name}</option>
-          ))}
-        </select>
       </form>
 
-      <ul className="space-y-2 max-h-[420px] overflow-auto">
+      {isDropdownOpen && results.length > 0 && (
+        <div className="absolute top-full left-0 border rounded-xl shadow-lg z-10 max-h-96 overflow-hidden mt-1 bg-black w-[340px] max-w-[75vw]" style={{ borderColor: '#1a1a1a' }}>
+          <div className="relative">
+            <ul className="space-y-2 py-2 px-2.5 max-h-96 overflow-auto no-scrollbar">
         {results.map((r) => (
-          <li key={r.id} className="flex items-center gap-2 border rounded p-2">
-            {r.image ? <img src={r.image} alt="" className="h-10 w-10 rounded object-cover" /> : <div className="h-10 w-10 bg-muted rounded" />}
+                <li key={r.id} className="flex items-center gap-3 border rounded-lg p-2.5 bg-[#1a1a1a] hover:bg-[#222222] transition-colors" style={{ borderColor: '#2a2a2a' }}>
+                  {r.image ? <img src={r.image} alt="" className="h-10 w-10 rounded object-cover" /> : <div className="h-10 w-10 rounded" style={{ backgroundColor: '#1a1a1a' }} />}
             <div className="flex-1 min-w-0">
-              <div className="truncate text-base font-medium">{r.name}</div>
-              <div className="truncate text-xs text-muted-foreground">{r.artists}</div>
+                    <div className="truncate text-base font-medium text-white">{r.name}</div>
+                    <div className="truncate text-xs text-gray-400">曲・{r.artists}</div>
             </div>
-            <Button size="sm" onClick={() => addToShelf(r)} disabled={adding === r.id || !selectedShelfId}>
-              {adding === r.id ? '追加中...' : '棚に追加'}
+                  <Button size="sm" onClick={() => addToShelf(r)} disabled={adding === r.id} className="text-white px-3 py-1" style={{ backgroundColor: '#333333' }}>
+                    {adding === r.id ? '追加中...' : '追加'}
             </Button>
           </li>
         ))}
-        {!results.length && (
-          <li className="text-xs text-muted-foreground">検索結果はまだありません</li>
-        )}
       </ul>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function ShelfView({ onShelfItemsChange, currentTrack }: { onShelfItemsChange: (items: any[]) => void, currentTrack?: any }) {
+function ShelfView({ onShelfItemsChange, currentTrack, toast }: { onShelfItemsChange: (items: any[]) => void, currentTrack?: any, toast: any }) {
   const [selectedShelfId, setSelectedShelfId] = useState<string>("")
   const [items, setItems] = useState<any[]>([])
   const [open, setOpen] = useState(false)
@@ -685,7 +1159,7 @@ function ShelfView({ onShelfItemsChange, currentTrack }: { onShelfItemsChange: (
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={items.map(item => item.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             {items.map((item) => {
               const isCurrentlyPlaying = currentTrack && 
                 `spotify:${item.spotify_type}:${item.spotify_id}` === currentTrack.uri
@@ -695,6 +1169,7 @@ function ShelfView({ onShelfItemsChange, currentTrack }: { onShelfItemsChange: (
                     item={item} 
                     isCurrentlyPlaying={isCurrentlyPlaying}
                     onClick={() => { setActiveItem(item); setOpen(true) }} 
+                    toast={toast} 
                   />
                 </div>
               )
@@ -724,7 +1199,7 @@ function ShelfView({ onShelfItemsChange, currentTrack }: { onShelfItemsChange: (
   )
 }
 
-function SortableAlbumCover({ item, onClick, isCurrentlyPlaying }: { item: any, onClick?: () => void, isCurrentlyPlaying?: boolean }) {
+function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item: any, onClick?: () => void, isCurrentlyPlaying?: boolean, toast: any }) {
   const {
     attributes,
     listeners,
@@ -752,21 +1227,29 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying }: { item: any, 
     >
       <motion.div 
         onClick={onClick} 
-        className={`relative bg-background transform transition-all duration-200 ${
+        className={`relative transform transition-all duration-200 ${
           isDragging 
             ? 'scale-110 rotate-2 shadow-2xl' 
             : isOver 
               ? 'scale-105 rotate-1' 
               : 'group-hover:scale-105 group-hover:rotate-1'
         }`}
+        style={{
+          ...style,
+          ...(isDragging && {
+            scale: 1.1,
+            y: -10,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            zIndex: 1000
+          }),
+          ...(isOver && {
+            scale: 1.05
+          })
+        }}
         animate={isCurrentlyPlaying ? {
-          y: [-12, 12, -12],
+          y: [-6, 6, -6],
           scale: [1, 1.08, 1],
-          boxShadow: [
-            '0 8px 25px rgba(0, 0, 0, 0.4)',
-            '0 20px 45px rgba(0, 0, 0, 0.6)',
-            '0 8px 25px rgba(0, 0, 0, 0.4)'
-          ]
+          boxShadow: 'none'
         } : {
           y: 0,
           scale: 1,
@@ -781,65 +1264,126 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying }: { item: any, 
           ease: "easeOut"
         }}
       >
-        {/* 波紋エフェクト */}
-        {isCurrentlyPlaying && (
-          <>
-            <motion.div
-              className="absolute inset-0 rounded-lg border-2 border-black opacity-60"
-              animate={{
-                scale: [1, 1.1, 1],
-                opacity: [0.6, 0.2, 0.6]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 0
-              }}
-            />
-            <motion.div
-              className="absolute inset-0 rounded-lg border-2 border-black opacity-40"
-              animate={{
-                scale: [1, 1.15, 1],
-                opacity: [0.4, 0.1, 0.4]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 0.5
-              }}
-            />
-            <motion.div
-              className="absolute inset-0 rounded-lg border-2 border-black opacity-20"
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.2, 0.05, 0.2]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 1
-              }}
-            />
-          </>
-        )}
+        {/* 画像コンテナ */}
+        <div className="relative rounded-lg" style={{ backgroundColor: '#1a1a1a' }}>
         {item.image_url ? (
           <img 
             src={item.image_url} 
             alt={item.title}
-            className="w-full aspect-square object-cover rounded-lg"
+              className="w-full aspect-square object-cover rounded-lg"
           />
         ) : (
-          <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
-            <div className="text-muted-foreground text-xs text-center p-2">
+            <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
+              <div className="text-muted-foreground text-xs text-center p-2">
               {item.title}
             </div>
           </div>
         )}
+          {isCurrentlyPlaying && (
+            <div className="absolute top-1.5 left-1.5 bg-black/60 rounded-full p-1.5 shadow-md">
+              <Music className="h-4 w-4 text-white" />
+            </div>
+          )}
+          {/* Hover overlay: only on image area */}
+          <div className="pointer-events-none absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="absolute inset-0 rounded-lg bg-black/30" />
+            {/* Delete button in top-right corner */}
+            <button
+              className="pointer-events-auto absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-transparent hover:bg-transparent flex items-center justify-center shadow-none transition-colors"
+              title="削除"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (confirm('このアイテムを削除しますか？')) {
+                  const { deleteShelfItem } = require('./actions')
+                  deleteShelfItem(new FormData().append('id', item.id))
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-red-500 transition-transform duration-100 hover:scale-125" strokeWidth={2} />
+            </button>
+            <div className="absolute inset-0 flex items-end justify-center pb-1 px-1">
+              <div className="pointer-events-auto flex items-center gap-1 w-full max-w-full justify-center">
+                <button
+                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
+                  title="外部で開く"
+                  onClick={(e) => { e.stopPropagation(); const url = item.spotify_type && item.spotify_id ? `https://open.spotify.com/${item.spotify_type}/${item.spotify_id}` : undefined; if (url) window.open(url, '_blank') }}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+                <button
+                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
+                  title="リンクをコピー"
+                  onClick={(e) => { e.stopPropagation(); const url = item.spotify_type && item.spotify_id ? `https://open.spotify.com/${item.spotify_type}/${item.spotify_id}` : ''; if (url) { navigator.clipboard?.writeText(url); toast({ title: 'リンクをコピーしました' }) } }}
+                >
+                  <LinkIcon className="h-3 w-3" />
+                </button>
+                <button
+                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
+                  title="再生"
+                  onClick={async (e) => { e.stopPropagation();
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const accessToken = (session as any)?.provider_token || (session as any)?.providerToken
+                    if (!accessToken) { 
+                      window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+                      toast({ title: 'Spotifyに再ログインしてください' })
+                      return 
+                    }
+                    try {
+                      // デバイス確認
+                      const devRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
+                        headers: { Authorization: `Bearer ${accessToken}` }
+                      })
+                      const devJson = await devRes.json()
+                      const devices = (devJson?.devices || []) as Array<{ id: string; is_active: boolean }>
+                      if (!devices.length) {
+                        toast({ title: '再生可能なSpotifyデバイスが見つかりません', description: 'Spotifyアプリを起動してください', variant: 'destructive' })
+                        return
+                      }
+                      if (!devices.some(d => d.is_active)) {
+                        const target = devices[0]
+                        await fetch('https://api.spotify.com/v1/me/player', {
+                          method: 'PUT',
+                          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ device_ids: [target.id], play: false })
+                        })
+                      }
+
+                      const body = { uris: [`spotify:track:${item.spotify_id}`] }
+                      const res = await fetch('https://api.spotify.com/v1/me/player/play', {
+                        method: 'PUT',
+                        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                      })
+
+                      if (!res.ok) {
+                        const txt = await res.text()
+                        console.error('Play error:', txt)
+                        toast({ title: '再生に失敗しました', variant: 'destructive' })
+                        return
+                      }
+
+                      window.dispatchEvent(new CustomEvent('track:playing', { detail: { id: item.id, title: item.title, artist: item.artist, album: item.album, image_url: item.image_url, duration_ms: item.duration_ms, shelfItems: undefined } }))
+                    } catch (err) {
+                      console.error('Play error:', err)
+                      toast({ title: '再生に失敗しました', variant: 'destructive' })
+                    }
+                  }}
+                >
+                  <Play className="h-3 w-3" />
+                </button>
+                <button
+                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
+                  title="一時停止"
+                  onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('player:pause')) }}
+                >
+                  <Pause className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div className="mt-1 px-2 py-1">
-          <div className="text-xs font-medium truncate">{item.title}</div>
+          <div className="text-xs font-medium truncate text-white">{item.title}</div>
           <div className="text-xs text-muted-foreground truncate">{item.artist}</div>
         </div>
       </motion.div>
@@ -882,9 +1426,17 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   useEffect(() => {
     if (item) {
       setMemo(item.memo || "")
+      setIsMemoOpen(false) // Reset memo input state when item changes
       loadCounts()
     }
   }, [item])
+
+  // Reset memo input state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setIsMemoOpen(false)
+    }
+  }, [open])
 
   const loadCounts = async () => {
     if (!item) return
@@ -957,7 +1509,8 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.provider_token
       if (!token) {
-        alert('Spotify認証が必要です')
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
         return
       }
       // アクティブデバイスが無いと404が返るため、デバイスを確認して必要なら転送を試みる
@@ -967,7 +1520,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
       const devJson = await devRes.json()
       const devices = (devJson?.devices || []) as Array<{ id: string; is_active: boolean }>
       if (!devices.length) {
-        alert('再生可能なSpotifyデバイスが見つかりません。Spotifyアプリを起動してください。')
+        toast({ title: '再生可能なSpotifyデバイスが見つかりません', description: 'Spotifyアプリを起動してください', variant: 'destructive' })
       } else if (!devices.some(d => d.is_active)) {
         const target = devices[0]
         await fetch('https://api.spotify.com/v1/me/player', {
@@ -988,15 +1541,19 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
-      
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
+        return
+      }
       if (!response.ok) {
         const error = await response.text()
         console.error('Play error:', error)
-        alert('再生に失敗しました')
+        toast({ title: '再生に失敗しました', variant: 'destructive' })
       }
     } catch (error) {
       console.error('Play error:', error)
-      alert('再生に失敗しました')
+      toast({ title: '再生に失敗しました', variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
@@ -1007,7 +1564,8 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.provider_token
       if (!token) {
-        alert('Spotify認証が必要です')
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
         return
       }
       
@@ -1019,11 +1577,11 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
       if (!response.ok) {
         const error = await response.text()
         console.error('Pause error:', error)
-        alert('一時停止に失敗しました')
+        toast({ title: '一時停止に失敗しました', variant: 'destructive' })
       }
     } catch (error) {
       console.error('Pause error:', error)
-      alert('一時停止に失敗しました')
+      toast({ title: '一時停止に失敗しました', variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
@@ -1136,6 +1694,46 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
             </button>
           </div>
           {!isMemoOpen && <hr className="border-gray-200 -mb-2" />}
+          
+          {/* メモ入力欄 */}
+          {isMemoOpen && (
+            <div className="mb-2 p-2 bg-background border border-border rounded-lg">
+              <div className="mb-2">
+                <label className="text-sm font-medium text-foreground">メモ</label>
+              </div>
+              <input
+                type="text"
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="メモを入力してください（20文字以内）"
+                maxLength={20}
+                className="w-full p-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors"
+              />
+              <div className="flex items-center justify-between mt-2">
+                <div className="text-xs text-muted-foreground">
+                  {memo.length}/20文字
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleMemoSave}
+                    disabled={isMemoLoading}
+                    className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {isMemoLoading ? '保存中...' : '保存'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsMemoOpen(false)}
+                    className="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <DialogFooter className="!justify-between items-start gap-2 flex-wrap w-full -mt-2 pb-1">
             <div className="flex gap-2 flex-wrap">
               <button
@@ -1216,7 +1814,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
               aria-label="削除"
             >
               <span className="flex items-center justify-center text-red-600 ml-0.75">
-                <Trash2 className="h-5 w-5" />
+                <Trash2 className="h-4 w-4 text-red-500 transition-transform duration-100 hover:scale-125" strokeWidth={2} />
               </span>
               <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 削除

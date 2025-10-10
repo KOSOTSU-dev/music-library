@@ -141,7 +141,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken: string | undefined = (session as any)?.provider_token || (session as any)?.providerToken
       if (!accessToken) {
-        toast({ title: 'エラー', description: 'Spotifyに再ログインしてください', variant: 'destructive' })
+        toast({ title: 'Spotifyに再ログインしてください', description: '' })
         return
       }
 

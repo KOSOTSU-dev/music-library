@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Shield } from "lucide-react"
+import { ArrowLeft, Shield, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import GlobalPlayer from "@/components/GlobalPlayer"
+import { signInWithSpotify } from "@/lib/auth"
 
 interface User {
   id: string
@@ -18,6 +19,7 @@ interface User {
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<User | null>(null)
+  const [highlightReauth, setHighlightReauth] = useState(false)
 
   // プロフィール情報を読み込み
   useEffect(() => {
@@ -35,6 +37,17 @@ export default function SettingsPage() {
     }
 
     loadProfile()
+  }, [])
+
+  useEffect(() => {
+    // ルートからの通知で強調
+    const f = typeof window !== 'undefined' ? localStorage.getItem('spotify:reauth-required') : null
+    if (f === '1') {
+      setHighlightReauth(true)
+      // 表示後3秒で自然に消す
+      const t = setTimeout(() => setHighlightReauth(false), 3000)
+      return () => clearTimeout(t)
+    }
   }, [])
 
   return (
@@ -93,6 +106,31 @@ export default function SettingsPage() {
                 {profile?.created_at && new Date(profile.created_at).toLocaleDateString('ja-JP')}
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Spotify再ログイン */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5" />
+            Spotify連携の再ログイン
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              再生や検索でエラーが出る場合は、Spotify連携を再ログインしてください。
+            </p>
+            <Button
+              onClick={() => {
+                void signInWithSpotify()
+              }}
+              className={`relative ${highlightReauth ? 'ring-2 ring-red-500 animate-pulse' : ''}`}
+            >
+              <span className={`${highlightReauth ? 'animate-bounce' : ''}`}>Spotifyに再ログイン</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
