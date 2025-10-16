@@ -81,7 +81,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
               </DialogHeader>
               <form action={handleSubmit} className="flex gap-2">
                 <input name="name" placeholder="新しい棚名" className="flex-1 rounded px-2 py-1 text-base bg-black text-white outline-none" />
-                <Button type="submit" size="sm" disabled={pending} className="text-white" style={{ backgroundColor: '#333333' }}>
+                <Button type="submit" size="sm" disabled={pending} className="text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-200 border-none" style={{ backgroundColor: '#333333' }}>
         {pending ? '作成中...' : '作成'}
       </Button>
     </form>
@@ -157,8 +157,21 @@ export default function AppHome() {
   }, [router])
 
   useEffect(() => {
-    // restore persisted flag
+    // 認証成功時の処理
     if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('auth_success') === 'true') {
+        // 認証成功時はlocalStorageをクリア
+        localStorage.removeItem('spotify:reauth-required')
+        setNeedsReauth(false)
+        // URLパラメータをクリア
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('auth_success')
+        window.history.replaceState({}, '', newUrl.toString())
+        return
+      }
+      
+      // restore persisted flag
       const f = localStorage.getItem('spotify:reauth-required')
       if (f === '1') setNeedsReauth(true)
     }
@@ -193,7 +206,7 @@ export default function AppHome() {
 
   if (loading) {
     return (
-      <main className="p-8">
+      <main className="min-h-screen bg-black text-white grid place-items-center">
         <p>読み込み中...</p>
       </main>
     )
@@ -339,14 +352,16 @@ export default function AppHome() {
         <div className={`${compactShelves ? 'grid grid-cols-[64px_1fr]' : 'grid grid-cols-12'} gap-2`}>
           {/* Left: Shelves */}
           <aside className={`${compactShelves ? '' : 'col-span-3'} ${compactShelves ? 'px-2 py-3' : 'p-3'} rounded-md h-[calc(100vh-5rem)] overflow-y-auto`} style={{ backgroundColor: '#1a1a1a', width: compactShelves ? 64 : undefined }}>
-            <div className="flex items-center justify-between mb-3">
+            <div className={`flex items-center mb-3 ${compactShelves ? 'justify-end' : 'justify-between'}`}>
               {!compactShelves && <h2 className="font-semibold text-white">マイギャラリー</h2>}
               <button
                 type="button"
-                className="text-base px-0 py-0 flex items-center gap-2 transition-colors"
+                className="text-base px-0 py-0 flex items-center gap-2 transition-colors hover:text-white focus:text-white focus:outline-none"
                 style={{ color: '#b3b3b3' }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ffffff' }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
+                onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
+                onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
                 onClick={() => {
                   setCompactShelves(v => {
                     const nv = !v
@@ -409,6 +424,7 @@ function ShelfList({
   onShelfSelect: (id: string) => void,
   compact: boolean
 }) {
+  const [editingShelfId, setEditingShelfId] = useState<string | null>(null)
   const [icons, setIcons] = useState<Record<string, string>>({})
   const [counts, setCounts] = useState<Record<string, number>>({})
 
@@ -474,9 +490,9 @@ function ShelfList({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { 
-        distance: 8,
-        delay: 100,
-        tolerance: 5
+        distance: 12,
+        delay: 150,
+        tolerance: 8
       },
     }),
     useSensor(KeyboardSensor, {
@@ -573,6 +589,8 @@ function ShelfList({
                 await deleteShelf(fd)
                 setShelves((prev) => prev.filter((s) => s.id !== shelf.id))
               }}
+              editingShelfId={editingShelfId}
+              setEditingShelfId={setEditingShelfId}
             />
           ))}
         {shelves.length === 0 && (
@@ -592,7 +610,9 @@ function SortableShelfItem({
   compact,
   iconUrl,
   onIconChange,
-  count
+  count,
+  editingShelfId,
+  setEditingShelfId
 }: { 
   shelf: { id: string; name: string; sort_order: number }
   isSelected: boolean
@@ -602,13 +622,18 @@ function SortableShelfItem({
   iconUrl?: string
   onIconChange: (id: string, url: string) => void
   count: number
+  editingShelfId: string | null
+  setEditingShelfId: (id: string | null) => void
 }) {
   const [showButtons, setShowButtons] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isEditingIcon, setIsEditingIcon] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editName, setEditName] = useState(shelf.name)
+  const [editIconUrl, setEditIconUrl] = useState(iconUrl)
   const [lastEnterTime, setLastEnterTime] = useState(0)
+  
+  const isCurrentlyEditing = editingShelfId === shelf.id || showEditModal
 
   const handleEdit = async () => {
     if (editName.trim() === '') return
@@ -625,6 +650,7 @@ function SortableShelfItem({
         shelf.name = result.shelf.name
         setIsEditing(false)
         setIsEditingIcon(false)
+        setEditingShelfId(null)
         // 親コンポーネントに変更を通知
         window.dispatchEvent(new CustomEvent('shelf:updated', {
           detail: { shelfId: shelf.id, newName: result.shelf.name, sortOrder: (result as any)?.shelf?.sort_order }
@@ -655,6 +681,7 @@ function SortableShelfItem({
       e.stopPropagation()
       setIsEditing(false)
       setIsEditingIcon(false)
+      setEditingShelfId(null)
       setEditName(shelf.name)
       setLastEnterTime(0)
     }
@@ -672,25 +699,36 @@ function SortableShelfItem({
   const style = {
     // 横方向の移動を制限（縦方向のみ）
     transform: isDragging ? `translateY(${transform?.y || 0}px)` : CSS.Transform.toString(transform),
-    transition: compact ? 'background-color 120ms ease' : 'background-color 120ms ease',
+    transition: isDragging ? 'background-color 120ms ease' : (compact ? 'background-color 120ms ease, transform 200ms ease' : 'background-color 120ms ease, transform 200ms ease'),
     opacity: isDragging ? 0.5 : 1,
   }
+  
+  // 編集中はドラッグを無効化
+  const dragListeners = isCurrentlyEditing ? {} : listeners
+  const dragAttributes = isCurrentlyEditing ? {} : attributes
 
   const triggerIconUpload = () => {
-    if (!isEditingIcon) return
     const input = document.getElementById(`icon-input-${shelf.id}`) as HTMLInputElement | null
     input?.click()
   }
 
+
+
   const handleIconFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = String(reader.result || '')
-      onIconChange(shelf.id, dataUrl)
+      if (showEditModal) {
+        setEditIconUrl(dataUrl)
+      } else {
+        onIconChange(shelf.id, dataUrl)
+      }
     }
     reader.readAsDataURL(file)
+    
     // reset value to allow re-selecting same file later
     e.target.value = ''
   }
@@ -706,6 +744,7 @@ function SortableShelfItem({
       if (!rowRef.current.contains(target)) {
         setIsEditing(false)
         setIsEditingIcon(false)
+        setEditingShelfId(null)
       }
     }
     document.addEventListener('mousedown', onDown)
@@ -737,19 +776,56 @@ function SortableShelfItem({
       className={`flex items-center justify-between ${compact ? 'px-1 py-1' : 'px-2 py-1'} text-base rounded cursor-grab active:cursor-grabbing`}
       data-shelf-selected={isSelected}
       data-shelf-id={shelf.id}
-      {...attributes}
-      {...listeners}
+      {...dragAttributes}
+      {...dragListeners}
     >
-      <div className={`flex items-center ${compact ? 'gap-0.5' : 'gap-2'} flex-1`} onClick={onSelect} title={compact ? shelf.name : undefined}>
+      <div className={`flex items-center ${compact ? 'gap-0.5' : 'gap-2'} flex-1 min-w-0`} onClick={onSelect} title={compact ? shelf.name : undefined}>
         {/* Icon/avatar */}
-        <div className={`shrink-0 relative group ${compact && isSelected ? 'ring-2 ring-white rounded-full' : ''} ${compact ? 'hover:scale-110 transition-transform duration-200 ease-out' : ''}`}>
+        <div 
+          className={`shrink-0 relative group ${compact && isSelected ? 'ring-2 ring-white rounded-lg' : ''} ${compact ? 'hover:scale-110 transition-transform duration-200 ease-out' : ''}`}
+          onClick={(e) => {
+            // 細い時は棚選択を許可するため、stopPropagationしない
+            if (!compact) {
+              e.stopPropagation();
+            }
+          }}
+        >
           {iconUrl ? (
-            <img src={iconUrl} alt="" className={`${compact ? 'h-9 w-9' : 'h-8 w-8'} rounded-full object-cover ${isEditingIcon ? 'cursor-pointer' : ''}`} onClick={triggerIconUpload} />
+            <img
+              src={iconUrl}
+              alt=""
+              className={`${compact ? 'h-9 w-9' : 'h-8 w-8'} rounded-lg object-cover cursor-default`}
+              onPointerDown={(e) => { if (!compact) e.stopPropagation() }}
+              onMouseDown={(e) => { if (!compact) e.stopPropagation() }}
+              onClick={(e) => {
+                e.preventDefault();
+                // 細い時は棚選択を許可するため、stopPropagationしない
+                if (!compact) {
+                  e.stopPropagation();
+                }
+              }}
+              title={undefined}
+            />
           ) : (
-            <div className={`${compact ? 'h-9 w-9' : 'h-8 w-8'} rounded-full grid place-items-center text-white ${isEditingIcon ? 'cursor-pointer' : ''}`} style={{ backgroundColor: '#696969', fontSize: compact ? '12px' : '14px' }} onClick={triggerIconUpload}>{shelf.name?.[0] || '棚'}</div>
+            <div
+              className={`${compact ? 'h-9 w-9' : 'h-8 w-8'} rounded-lg flex items-center justify-center text-white cursor-default`}
+              style={{ backgroundColor: '#24b324', fontSize: compact ? '12px' : '14px', paddingBottom: shelf.name?.[0]?.match(/[A-Z]/) ? '1px' : '2px' }}
+              onPointerDown={(e) => { if (!compact) e.stopPropagation() }}
+              onMouseDown={(e) => { if (!compact) e.stopPropagation() }}
+              onClick={(e) => {
+                e.preventDefault();
+                // 細い時は棚選択を許可するため、stopPropagationしない
+                if (!compact) {
+                  e.stopPropagation();
+                }
+              }}
+              title={undefined}
+            >
+              {shelf.name?.[0] || '棚'}
+            </div>
           )}
           {isEditingIcon && (
-            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="absolute inset-0 rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <Pen className="h-3 w-3 text-white" />
       </div>
           )}
@@ -757,8 +833,23 @@ function SortableShelfItem({
           {compact && (
             <button
               type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowEditModal(true) }}
-              className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 grid place-items-center"
+              onClick={(e) => { 
+                e.preventDefault(); 
+                e.stopPropagation(); 
+                setEditName(shelf.name);
+                setEditIconUrl(iconUrl);
+                setShowEditModal(true) 
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation()
+              }}
+              onPointerUp={(e) => {
+                e.stopPropagation()
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+              }}
+              className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 grid place-items-center z-10"
               aria-label="編集"
             >
               <Pen className="h-3 w-3" />
@@ -767,28 +858,14 @@ function SortableShelfItem({
         </div>
         <input id={`icon-input-${shelf.id}`} type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
         {!compact && (
-          <div className="flex-1 min-w-0">
-            {isEditing ? (
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => { setEditName(e.target.value); setLastEnterTime(0) }}
-                onKeyDown={handleKeyPress}
-                onBlur={handleEdit}
-                className="w-full bg-transparent border-none outline-none text-white text-base font-medium truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px] lg:max-w-[240px] xl:max-w-[280px] 2xl:max-w-[320px] h-5 leading-5 py-0"
-                autoFocus
-        onClick={(e) => e.stopPropagation()}
-                style={{ fontFamily: 'inherit' }}
-              />
-            ) : (
-              <div className="truncate text-white max-w-[120px] sm:max-w-[160px] md:max-w-[200px] lg:max-w-[240px] xl:max-w-[280px] 2xl:max-w-[320px] h-5 leading-5" style={{ fontFamily: 'inherit' }}>{shelf.name}</div>
-            )}
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="truncate text-white h-5 leading-5" style={{ fontFamily: 'inherit' }}>{shelf.name}</div>
             <div className="text-xs text-muted-foreground">{count} 曲</div>
           </div>
         )}
       </div>
       
-      {!isEditing && !compact && (
+      {!compact && (
         <div className="relative" ref={menuRef}>
           {showButtons && (
             <motion.div
@@ -803,9 +880,9 @@ function SortableShelfItem({
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  console.log('Edit button clicked')
-                  setIsEditing(true)
-                  setIsEditingIcon(true)
+                  setEditName(shelf.name)
+                  setEditIconUrl(iconUrl)
+                  setShowEditModal(true)
                   setShowButtons(false)
                 }}
                 className="w-full px-2 py-1 text-sm text-white bg-transparent hover:!bg-[#4d4d4d] transition-colors hover:rounded-t-sm"
@@ -844,43 +921,102 @@ function SortableShelfItem({
           </button>
         </div>
       )}
-      {/* コンパクト時のみの編集モーダル */}
-      {compact && (
-        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent className="sm:max-w-[420px] bg-black border-none">
+      {/* 編集モーダル（細い時・通常時共通） */}
+      <Dialog open={showEditModal} onOpenChange={(open) => { 
+        setShowEditModal(open); 
+        if (!open) {
+          setIsEditingIcon(false);
+          setEditIconUrl(iconUrl); // リセット
+        }
+      }}>
+          <DialogContent className="sm:max-w-[420px] bg-[#1a1a1a] border-none [&>button]:bg-transparent [&>button]:text-gray-400 [&>button]:hover:text-white [&>button]:hover:bg-transparent [&>button]:focus:outline-none [&>button]:focus:ring-0 [&>button]:border-none [&>button]:shadow-none">
             <DialogHeader>
               <DialogTitle className="text-white">棚を編集</DialogTitle>
             </DialogHeader>
             <div className="flex items-center gap-3">
               <div className="relative group">
-                {iconUrl ? (
-                  <img src={iconUrl} alt="" className="h-16 w-16 rounded-full object-cover cursor-pointer" onClick={(e) => { e.preventDefault(); triggerIconUpload() }} />
+                {editIconUrl ? (
+                  <img src={editIconUrl} alt="" className="h-16 w-16 rounded-lg object-cover cursor-pointer border border-white" onClick={(e) => { e.preventDefault(); e.stopPropagation(); triggerIconUpload() }} />
                 ) : (
-                  <div className="h-16 w-16 rounded-full grid place-items-center text-white cursor-pointer" style={{ backgroundColor: '#696969' }} onClick={(e) => { e.preventDefault(); triggerIconUpload() }}>{shelf.name?.[0] || '棚'}</div>
+                  <div className="h-16 w-16 rounded-lg grid place-items-center text-white cursor-pointer border border-white" style={{ backgroundColor: '#696969' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); triggerIconUpload() }}>{editName?.[0] || '棚'}</div>
                 )}
-                <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                   <Pen className="h-4 w-4 text-white" />
                 </div>
                 <input id={`icon-input-${shelf.id}`} type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
+                {/* アイコン削除ボタン */}
+                {editIconUrl && (
+                  <button
+                    type="button"
+                    onClick={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation(); 
+                      setEditIconUrl(undefined);
+                    }}
+                    className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 transition-colors"
+                    aria-label="アイコンを削除"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { handleEdit(); setShowEditModal(false) } }}
-                className="flex-1 border-none rounded px-2 py-1 text-white outline-none"
-                style={{ backgroundColor: '#1a1a1a' }}
-                placeholder="棚名"
-                autoFocus
-              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => { 
+                    if (e.key === 'Enter') {
+                      const now = Date.now()
+                      if (now - lastEnterTime < 500) {
+                        // 2回連続でEnterが押された場合のみ保存
+                        handleEdit(); 
+                        setShowEditModal(false);
+                        setLastEnterTime(0)
+                      } else {
+                        setLastEnterTime(now)
+                      }
+                    }
+                  }}
+                  className="w-full border-none bg-transparent text-white outline-none text-base font-medium"
+                  placeholder="棚名"
+                  autoFocus
+                />
+                <div className="text-xs text-muted-foreground mt-1">{count} 曲</div>
+              </div>
             </div>
             <DialogFooter className="justify-between">
-              <Button onClick={() => { handleEdit(); setShowEditModal(false) }} className="text-white" style={{ backgroundColor: '#333333' }}>保存</Button>
-              <Button variant="destructive" onClick={() => { if (confirm('この棚を削除しますか？この操作は取り消せません。')) { onDelete(); setShowEditModal(false) } }}>削除</Button>
+              <Button onClick={() => { 
+                // モーダル内の変更を保存
+                if (editIconUrl !== undefined) {
+                  if (editIconUrl) {
+                    onIconChange(shelf.id, editIconUrl)
+                  } else {
+                    // アイコンが削除された場合
+                    onIconChange(shelf.id, '')
+                  }
+                }
+                handleEdit(); 
+                setShowEditModal(false); 
+                setIsEditingIcon(false);
+                setEditIconUrl(iconUrl); // リセット
+              }} 
+              className="group relative text-white bg-transparent hover:bg-transparent transition-all duration-300 focus:outline-none focus:ring-0 border-none p-0"
+              style={{ backgroundColor: 'transparent' }}>
+                <span className="relative z-10">保存</span>
+                <div className="absolute bottom-1 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></div>
+              </Button>
+              <Button 
+                onClick={() => { if (confirm('この棚を削除しますか？この操作は取り消せません。')) { onDelete(); setShowEditModal(false); setIsEditingIcon(false); setEditIconUrl(undefined); } }}
+                className="group relative text-[#dc2626] bg-transparent hover:bg-transparent transition-all duration-300 focus:outline-none focus:ring-0 border-none p-0"
+                style={{ backgroundColor: 'transparent' }}>
+                <span className="relative z-10">削除</span>
+                <div className="absolute bottom-1 left-0 w-0 h-0.5 bg-[#dc2626] transition-all duration-300 ease-out group-hover:w-full"></div>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
+        
     </li>
   )
 }
@@ -890,6 +1026,8 @@ function SearchPanel() {
   const [results, setResults] = useState<any[]>([])
   const [adding, setAdding] = useState<string | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [notifiedAuthMissing, setNotifiedAuthMissing] = useState(false)
+  const { toast } = useToast()
 
   // ドロップダウン外をクリックした時に閉じる
   useEffect(() => {
@@ -909,18 +1047,57 @@ function SearchPanel() {
     }
   }, [isDropdownOpen])
 
+  // 入力時に認証切れを検知して通知（多重通知を抑制）
+  const checkAuthAndNotify = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.provider_token
+      if (!token) {
+        if (!notifiedAuthMissing) {
+          window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+          toast({ title: 'Spotifyに再ログインしてください' })
+          setNotifiedAuthMissing(true)
+        }
+        return false
+      }
+      // トークンが復帰していれば通知状態を解除
+      if (notifiedAuthMissing) setNotifiedAuthMissing(false)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    setQuery(v)
+    if (v) {
+      void checkAuthAndNotify()
+    } else {
+      setNotifiedAuthMissing(false)
+    }
+  }
+
   async function onSearch(e: React.FormEvent) {
     e.preventDefault()
-    const token = await (async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      return session?.provider_token
-    })()
-    if (!token || !query) return
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.provider_token
+    if (!query) return
+    if (!token) {
+      window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+      toast({ title: 'Spotifyに再ログインしてください' })
+      return
+    }
 
     const params = new URLSearchParams({ q: query, type: 'track', limit: '10' })
     const res = await fetch(`https://api.spotify.com/v1/search?${params}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+      toast({ title: 'Spotifyに再ログインしてください' })
+      return
+    }
     const json = await res.json()
     const list = (json['tracks']?.items || []).map((it: any) => ({
       id: it.id,
@@ -982,11 +1159,11 @@ function SearchPanel() {
         <div className="flex gap-2">
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={handleInputChange}
             placeholder="追加したい曲名を入力"
-            className="border rounded px-2 py-1 text-base w-64 bg-black text-white border-gray-600"
+            className="rounded px-2 py-1 text-base w-64 bg-black text-white border-none focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
           />
-          <Button type="submit" size="sm" className="text-white hover:!bg-[#4d4d4d]" style={{ backgroundColor: '#333333' }}>検索</Button>
+          <Button type="submit" size="sm" className="text-white hover:!bg-[#4d4d4d] focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-200 !border-0 shadow-none" style={{ backgroundColor: '#333333', border: 'none' }}>検索</Button>
         </div>
       </form>
 
@@ -1001,7 +1178,7 @@ function SearchPanel() {
                     <div className="truncate text-base font-medium text-white">{r.name}</div>
                     <div className="truncate text-xs text-gray-400">曲・{r.artists}</div>
             </div>
-                  <Button size="sm" onClick={() => addToShelf(r)} disabled={adding === r.id} className="text-white px-3 py-1" style={{ backgroundColor: '#333333' }}>
+                  <Button size="sm" onClick={() => addToShelf(r)} disabled={adding === r.id} className="text-white px-3 py-1 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-200 border-none" style={{ backgroundColor: '#333333' }}>
                     {adding === r.id ? '追加中...' : '追加'}
             </Button>
           </li>
@@ -1617,10 +1794,10 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[520px] pb-3">
+        <DialogContent className="sm:max-w-[520px] pb-3 bg-[#1a1a1a] text-white [&>button]:text-[#b3b3b3] [&>button:hover]:text-[#cccccc]">
           <div className="relative">
             <DialogHeader>
-              <DialogTitle className="flex-1 min-w-0">{item.title}</DialogTitle>
+              <DialogTitle className="flex-1 min-w-0 text-white">{item.title}</DialogTitle>
             </DialogHeader>
             <div className="flex gap-4">
               {item.image_url ? (
@@ -1628,7 +1805,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
               ) : (
                 <div className="w-40 h-40 rounded bg-muted" />
               )}
-              <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1 text-white">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="text-base text-muted-foreground">アーティスト</div>
@@ -1637,18 +1814,18 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                   <div className="flex items-center gap-3 -mt-1">
                     <button
                       onClick={handleShowLikes}
-                      className="flex items-center gap-1 text-base text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex items-center gap-1 text-base text-muted-foreground transition-colors group"
                       disabled={isLoadingCounts}
                     >
-                      <Heart className="h-5 w-5" />
+                      <Heart className="h-5 w-5 text-white group-hover:text-[#ff80d5] transition-colors" />
                       <span>{likeCount}</span>
                     </button>
                     <button
                       onClick={handleShowComments}
-                      className="flex items-center gap-1 text-base text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex items-center gap-1 text-base text-muted-foreground transition-all group"
                       disabled={isLoadingCounts}
                     >
-                      <MessageCircle className="h-5 w-5" />
+                      <MessageCircle className="h-5 w-5 text-white transform group-hover:-translate-y-0.5 transition-transform" />
                       <span>{commentCount}</span>
                     </button>
                   </div>
@@ -1813,8 +1990,8 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
               onClick={handleDelete}
               aria-label="削除"
             >
-              <span className="flex items-center justify-center text-red-600 ml-0.75">
-                <Trash2 className="h-4 w-4 text-red-500 transition-transform duration-100 hover:scale-125" strokeWidth={2} />
+              <span className="flex items-center justify-center text-red-600 ml-1">
+                <Trash2 className="h-[1.3rem] w-[1.3rem] text-red-500 transition-transform duration-100 hover:scale-125" strokeWidth={2} />
               </span>
               <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 削除

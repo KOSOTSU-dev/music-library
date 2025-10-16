@@ -29,7 +29,10 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(new URL(next, request.url))
+      // 認証成功時にlocalStorageをクリアするためのフラグを付けてリダイレクト
+      const redirectUrl = new URL(next, request.url)
+      redirectUrl.searchParams.set('auth_success', 'true')
+      return NextResponse.redirect(redirectUrl)
     }
   }
 

@@ -224,7 +224,7 @@ export default function GlobalPlayer({ currentShelfItems = [], onShelfItemsChang
   if (!currentTrack) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 py-3 pl-4 pr-0 text-white">
+    <div className="fixed bottom-0 left-0 right-0 bg-black py-3 pl-4 pr-0 text-white">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center w-full">
         {/* 左側: 曲情報（左端寄せ） */}
         <div className="flex items-center gap-4 min-w-0 justify-self-start">

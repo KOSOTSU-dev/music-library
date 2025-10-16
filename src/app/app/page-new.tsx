@@ -183,7 +183,7 @@ export default function AppHome() {
 
   if (loading) {
     return (
-      <main className="p-4">
+      <main className="min-h-screen bg-black text-white grid place-items-center p-4">
         <p>読み込み中...</p>
       </main>
     )

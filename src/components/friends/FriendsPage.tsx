@@ -519,26 +519,26 @@ export default function FriendsPage() {
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-screen bg-black">
       <div className="max-w-4xl mx-auto p-6 pb-24 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]">
             <Link href="/app">
               <ArrowLeft className="h-4 w-4 mr-2" />
               ホームに戻る
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold">フレンド</h1>
+          <h1 className="text-3xl font-bold text-white">フレンド</h1>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground">
-          <TabsTrigger value="friends" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm w-auto">
+        <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-[#1a1a1a] p-1 text-white">
+          <TabsTrigger value="friends" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[#333333] data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-[#333333] hover:text-white text-white w-auto">
             フレンド
           </TabsTrigger>
-          <TabsTrigger value="requests" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm w-auto">
+          <TabsTrigger value="requests" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[#333333] data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-[#333333] hover:text-white text-white w-auto">
             申請
             {pendingCount > 0 && (
               <Badge variant="destructive" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
@@ -546,16 +546,16 @@ export default function FriendsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="mypage" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm w-auto">
+          <TabsTrigger value="mypage" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[#333333] data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-[#333333] hover:text-white text-white w-auto">
             マイページ
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="friends" className="space-y-4">
           {/* 検索フォーム */}
-          <Card>
+          <Card className="bg-[#1a1a1a] border-[#333333]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-white">
                 <Search className="h-5 w-5" />
                 ユーザー検索
               </CardTitle>
@@ -567,25 +567,26 @@ export default function FriendsPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  className="bg-black border-[#333333] text-white placeholder:text-[#999999] focus:border-[#4d4d4d]"
                 />
-                <Button onClick={handleSearch} disabled={isSearching}>
+                <Button onClick={handleSearch} disabled={isSearching} className="bg-[#666666] text-white hover:bg-[#4d4d4d]">
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
 
               {searchResults.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <h3 className="font-medium">検索結果</h3>
+                  <h3 className="font-medium text-white">検索結果</h3>
                   <div className="grid gap-2">
                     {searchResults.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={user.id} className="flex items-center justify-between p-3 border border-[#333333] rounded-lg bg-[#1a1a1a]">
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarImage src={user.avatar_url || undefined} />
                             <AvatarFallback>{user.display_name[0]}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{user.display_name}</div>
+                            <div className="font-medium text-white">{user.display_name}</div>
                             <div className="text-sm text-muted-foreground">@{user.username}</div>
                           </div>
                         </div>
@@ -594,6 +595,7 @@ export default function FriendsPage() {
                           size="sm"
                           onClick={() => handleSendFriendRequest(user.id)}
                           disabled={isLoading}
+                          className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
                         >
                           <UserPlus className="h-4 w-4 mr-2" />
                           申請
@@ -606,9 +608,9 @@ export default function FriendsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-[#1a1a1a] border-[#333333]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-white">
                 <UserCheck className="h-5 w-5" />
                 フレンド一覧 ({friends.length})
               </CardTitle>
@@ -623,19 +625,19 @@ export default function FriendsPage() {
                   {friends.map((friend) => {
                     const friendUser = friend.user.id === profile?.id ? friend.friend : friend.user
                     return (
-                      <div key={friend.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={friend.id} className="flex items-center justify-between p-4 border border-[#333333] rounded-lg bg-[#1a1a1a]">
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarImage src={friendUser.avatar_url || undefined} />
                             <AvatarFallback>{friendUser.display_name[0]}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{friendUser.display_name}</div>
+                            <div className="font-medium text-white">{friendUser.display_name}</div>
                             <div className="text-sm text-muted-foreground">@{friendUser.username}</div>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button asChild variant="outline" size="sm">
+                          <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-[#e6e6e6]">
                             <Link href={`/app/friends/${friendUser.id}/shelf/first`}>
                               <Eye className="h-4 w-4 mr-2" />
                               ギャラリー
@@ -646,6 +648,7 @@ export default function FriendsPage() {
                             size="sm"
                             onClick={() => handleRemoveFriend(friendUser.id)}
                             disabled={isLoading}
+                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-[#e6e6e6]"
                           >
                             <UserMinus className="h-4 w-4 mr-2" />
                             削除
@@ -661,9 +664,9 @@ export default function FriendsPage() {
         </TabsContent>
 
         <TabsContent value="requests" className="space-y-4">
-          <Card>
+          <Card className="bg-[#1a1a1a] border-[#333333]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-white">
                 <UserPlus className="h-5 w-5" />
                 フレンド申請 ({pendingRequests.length})
               </CardTitle>
@@ -679,6 +682,7 @@ export default function FriendsPage() {
                       onClick={handleSetupVirtualFriends} 
                       disabled={isLoading}
                       variant="outline"
+                      className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
                     >
                       <Wand2 className="h-4 w-4 mr-2" />
                       仮想フレンド申請を作成
@@ -690,14 +694,14 @@ export default function FriendsPage() {
                   {pendingRequests.map((request) => {
                     const requester = request.user.id === profile?.id ? request.friend : request.user
                     return (
-                      <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={request.id} className="flex items-center justify-between p-4 border border-[#333333] rounded-lg bg-[#1a1a1a]">
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarImage src={requester.avatar_url || undefined} />
                             <AvatarFallback>{requester.display_name[0]}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{requester.display_name}</div>
+                            <div className="font-medium text-white">{requester.display_name}</div>
                             <div className="text-sm text-muted-foreground">@{requester.username}</div>
                             <Badge variant="secondary">申請中</Badge>
                           </div>
@@ -708,6 +712,7 @@ export default function FriendsPage() {
                             size="sm"
                             onClick={() => handleAcceptRequest(requester.id)}
                             disabled={isLoading}
+                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
                           >
                             <UserCheck className="h-4 w-4 mr-2" />
                             承認
@@ -717,6 +722,7 @@ export default function FriendsPage() {
                             size="sm"
                             onClick={() => handleRejectRequest(requester.id)}
                             disabled={isLoading}
+                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
                           >
                             <UserX className="h-4 w-4 mr-2" />
                             拒否
@@ -732,15 +738,15 @@ export default function FriendsPage() {
         </TabsContent>
 
         <TabsContent value="mypage" className="space-y-4">
-          <Card>
+          <Card className="bg-[#1a1a1a] border-[#333333]">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 text-white">
                   <User className="h-5 w-5" />
                   マイページ
                 </div>
                 <form action={signOut}>
-                  <Button type="submit" variant="outline" size="sm">
+                  <Button type="submit" variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]">
                     <LogOut className="h-4 w-4 mr-2" />
                     ログアウト
                   </Button>
@@ -762,7 +768,7 @@ export default function FriendsPage() {
                         </div>
                       </div>
                       <div>
-                        <div className="font-medium">{profile.display_name}</div>
+                        <div className="font-medium text-white">{profile.display_name}</div>
                         <div className="text-sm text-muted-foreground">@{profile.username}</div>
                       </div>
                     </div>
@@ -781,11 +787,12 @@ export default function FriendsPage() {
                   </p>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">表示名</label>
+                    <label className="text-sm font-medium text-white">表示名</label>
                     <Input
                       name="displayName"
                       defaultValue={profile.display_name}
                       placeholder="表示名を入力（空欄可）"
+                      className="bg-black border-[#333333] text-white placeholder:text-[#999999] focus:border-[#4d4d4d]"
                     />
                     <p className="text-xs text-muted-foreground">
                       他のユーザーに表示される名前です。空欄の場合はユーザー名が表示されます。
@@ -793,12 +800,13 @@ export default function FriendsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">ユーザー名</label>
+                    <label className="text-sm font-medium text-white">ユーザー名</label>
                     <Input
                       name="username"
                       defaultValue={profile.username}
                       required
                       placeholder="ユーザー名を入力"
+                      className="bg-black border-[#333333] text-white placeholder:text-[#999999] focus:border-[#4d4d4d]"
                     />
                     <p className="text-xs text-muted-foreground">
                       3-20文字で入力してください。他のユーザーが検索で見つける際に使用されます。
@@ -806,7 +814,7 @@ export default function FriendsPage() {
                   </div>
 
                   
-                  <Button type="submit" disabled={isLoading} className="w-full">
+                  <Button type="submit" disabled={isLoading} className="w-full bg-[#666666] text-white hover:bg-[#4d4d4d]">
                     {isLoading ? "更新中..." : "プロフィールを更新"}
                   </Button>
                 </form>

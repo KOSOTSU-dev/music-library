@@ -12,7 +12,7 @@ interface PageProps {
 export default function FriendShelfPage({ params }: PageProps) {
   return (
     <>
-      <Suspense fallback={<div className="p-6">読み込み中...</div>}>
+      <Suspense fallback={<div className="min-h-screen bg-black text-white grid place-items-center">読み込み中...</div>}>
         <FriendShelfDetail userId={params.userId} shelfId={params.shelfId} />
       </Suspense>
       <Toaster />

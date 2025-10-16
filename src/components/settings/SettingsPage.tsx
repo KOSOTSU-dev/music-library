@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Shield, RefreshCw } from "lucide-react"
+import { ArrowLeft, Shield, RefreshCw, LogOut } from "lucide-react"
 import Link from "next/link"
 import GlobalPlayer from "@/components/GlobalPlayer"
 import { signInWithSpotify } from "@/lib/auth"
@@ -50,58 +50,51 @@ export default function SettingsPage() {
     }
   }, [])
 
+  const handleLogout = async () => {
+    if (confirm('ログアウトしますか？')) {
+      await supabase.auth.signOut()
+      window.location.href = '/login'
+    }
+  }
+
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-screen bg-black">
       <div className="max-w-2xl mx-auto p-6 pb-24 space-y-6">
       {/* ヘッダー */}
       <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]">
           <Link href="/app">
             <ArrowLeft className="h-4 w-4 mr-2" />
             ホームに戻る
           </Link>
         </Button>
-        <h1 className="text-3xl font-bold">設定</h1>
+        <h1 className="text-3xl font-bold text-white">設定</h1>
       </div>
 
-      {/* プロフィール設定はマイページに移動 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            プロフィール設定
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-muted-foreground mb-4">
-              プロフィール設定はフレンドページのマイページタブで行えます
-            </p>
-            <Button asChild>
-              <Link href="/app/friends">
-                フレンドページへ移動
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* アカウント情報 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>アカウント情報</CardTitle>
+      <Card className="bg-[#1a1a1a] border-[#333333]">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-white">アカウント情報</CardTitle>
+          <Button
+            onClick={handleLogout}
+            className="bg-[#666666] text-white hover:bg-[#4d4d4d]"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            ログアウト
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium">Spotifyアカウント</div>
+              <div className="font-medium text-white">Spotifyアカウント</div>
               <div className="text-sm text-muted-foreground">音楽データの取得に使用</div>
             </div>
             <div className="text-sm text-muted-foreground">連携済み</div>
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium">アカウント作成日</div>
+              <div className="font-medium text-white">アカウント作成日</div>
               <div className="text-sm text-muted-foreground">
                 {profile?.created_at && new Date(profile.created_at).toLocaleDateString('ja-JP')}
               </div>
@@ -111,9 +104,9 @@ export default function SettingsPage() {
       </Card>
 
       {/* Spotify再ログイン */}
-      <Card>
+      <Card className="bg-[#1a1a1a] border-[#333333]">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-white">
             <RefreshCw className="h-5 w-5" />
             Spotify連携の再ログイン
           </CardTitle>
@@ -127,7 +120,7 @@ export default function SettingsPage() {
               onClick={() => {
                 void signInWithSpotify()
               }}
-              className={`relative ${highlightReauth ? 'ring-2 ring-red-500 animate-pulse' : ''}`}
+              className={`bg-[#666666] text-white hover:bg-[#4d4d4d] relative ${highlightReauth ? 'ring-2 ring-red-500 animate-pulse' : ''}`}
             >
               <span className={`${highlightReauth ? 'animate-bounce' : ''}`}>Spotifyに再ログイン</span>
             </Button>

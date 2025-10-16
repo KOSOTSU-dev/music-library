@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, Calendar, Music, Heart, MessageCircle, Play, Pause, ExternalLink, ChevronDown, Share2 } from "lucide-react"
+import { ArrowLeft, Calendar, Music, Heart, MessageCircle, Play, Pause, ExternalLink, ChevronDown, Share2, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import CommentSection from "@/components/comments/CommentSection"
@@ -406,9 +406,9 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="min-h-screen bg-black text-white grid place-items-center">
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent mx-auto mb-4"></div>
           <p>読み込み中...</p>
         </div>
       </div>
@@ -432,11 +432,11 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-screen bg-black text-white">
       <div className="max-w-6xl mx-auto p-6 pb-24 space-y-6">
         {/* ヘッダー */}
         <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" className="text-white bg-[#1a1a1a] border-[#1a1a1a] hover:bg-[#333333]">
           <Link href="/app/friends">
             <ArrowLeft className="h-4 w-4 mr-2" />
             戻る
@@ -457,7 +457,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
               <span className="text-sm text-muted-foreground">棚:</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8">
+                  <Button variant="outline" size="sm" className="h-8 text-white bg-[#1a1a1a] border-[#1a1a1a] hover:bg-[#333333]">
                     {shelf.name}
                     <ChevronDown className="h-4 w-4 ml-2" />
                   </Button>
@@ -478,17 +478,17 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       </div>
 
       {/* アイテム一覧 */}
-      <Card>
+      <Card className="bg-[#1a1a1a] border-[#333333]">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-white">
               <Music className="h-5 w-5" />
               楽曲一覧
               <span className="text-sm text-muted-foreground font-normal ml-2">
                 ({items.length}曲)
               </span>
             </CardTitle>
-            <Badge variant="outline" className="flex items-center gap-1">
+            <Badge variant="outline" className="flex items-center gap-1 bg-[#333333] text-white border-[#333333]">
               <Calendar className="h-3 w-3" />
               {formatDate(shelf.created_at)}
             </Badge>
@@ -500,7 +500,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
               この棚にはまだ楽曲がありません
             </p>
           ) : (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid gap-x-4 gap-y-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {items.map((item, index) => (
                 <motion.div
                   key={item.id}
@@ -510,14 +510,10 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                   className="cursor-pointer"
                 >
                   <Card 
-                    className="hover:shadow-md hover:brightness-75 transition-all duration-200"
-                    onClick={() => {
-                      setSelectedItem(item)
-                      setIsModalOpen(true)
-                    }}
+                    className="group transition-colors duration-200 bg-[#333333] hover:bg-[#4d4d4d] border-[#333333] py-1 gap-1"
                   >
-                    <CardContent className="p-4">
-                      <div className="aspect-[3/4] bg-gradient-to-b from-gray-200 to-gray-300 rounded-lg mb-3 relative overflow-hidden">
+                    <CardContent className="px-3 py-0">
+                      <div className="aspect-[3/4] rounded-lg mb-2 mt-1 relative overflow-hidden bg-[#333333]">
                         {item.image_url ? (
                           <img 
                             src={item.image_url} 
@@ -525,36 +521,56 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                             className="w-full h-full object-cover rounded-lg"
                           />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-b from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
-                            <div className="text-gray-500 text-xs text-center p-2">
+                          <div className="w-full h-full rounded-lg flex items-center justify-center bg-[#333333]">
+                            <div className="text-gray-400 text-xs text-center p-2">
                               {item.title}
                             </div>
                           </div>
                         )}
                       </div>
-                      <div className="space-y-1">
-                        <h3 className="font-medium text-sm truncate">{item.title}</h3>
-                        <p className="text-xs text-muted-foreground truncate">{item.artist}</p>
-                        {item.album && (
-                          <p className="text-xs text-muted-foreground truncate">{item.album}</p>
-                        )}
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="flex items-center gap-3">
+                      <div className="space-y-1 text-white">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-medium text-sm truncate text-white flex-1 min-w-0">{item.title}</h3>
+                          <div className="flex items-center gap-2 ml-auto">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleLike(item.id)
                               }}
-                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors"
+                              className="flex items-center gap-1 text-xs text-white hover:text-red-500 transition-colors"
                             >
-                              <Heart className={`h-3 w-3 ${userLikes[item.id] ? 'fill-red-500 text-red-500' : ''}`} />
+                              <Heart className={`h-4 w-4 ${userLikes[item.id] ? 'fill-red-500 text-red-500' : ''}`} />
                               <span>{likeCounts[item.id] || 0}</span>
                             </button>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MessageCircle className="h-3 w-3" />
+                            <div className="flex items-center gap-1 text-xs text-white hover:-translate-y-1 transition-transform duration-200 ease-out">
+                              <MessageCircle className="h-4 w-4" />
                               <span>{commentCounts[item.id] || 0}</span>
                             </div>
                           </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{item.artist}</p>
+                        {item.album && (
+                          <p className="text-xs text-muted-foreground truncate">{item.album}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-0.5 mb-0.5">
+                              <button
+                                type="button"
+                                className="group/button flex items-center justify-center overflow-hidden w-9 h-9 hover:w-16 transition-all duration-300 rounded-full border-0 bg-black hover:bg-white text-white hover:text-black px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                                onClick={(e) => { e.stopPropagation(); openInSpotify(item.spotify_type, item.spotify_id) }}
+                                title="外部で開く"
+                              >
+                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-current" />
+                                <span className="ml-0 w-0 overflow-hidden text-xs whitespace-nowrap opacity-0 transition-all duration-300 group-hover/button:opacity-100 group-hover/button:w-auto group-hover/button:ml-1">開く</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="group/button flex items-center justify-center overflow-hidden w-9 h-9 hover:w-16 transition-all duration-300 rounded-full border-0 bg-black hover:bg-white text-white hover:text-black px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                                onClick={(e) => { e.stopPropagation(); handlePlay(item) }}
+                                title="再生"
+                              >
+                                <Play className="h-4 w-4 flex-shrink-0 text-current" />
+                                <span className="ml-0 w-0 overflow-hidden text-xs whitespace-nowrap opacity-0 transition-all duration-300 group-hover/button:opacity-100 group-hover/button:w-auto group-hover/button:ml-1">再生</span>
+                              </button>
                         </div>
                       </div>
                     </CardContent>
@@ -567,172 +583,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       </Card>
     </div>
 
-    {/* 楽曲詳細モーダル */}
-    {selectedItem && (
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <div className="flex items-center justify-between gap-2">
-              <DialogTitle className="truncate">{selectedItem.title}</DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="URLをコピー"
-                onClick={() => navigator.clipboard.writeText(spotifyUrl(selectedItem))}
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </DialogHeader>
-          <div className="flex gap-4">
-            {selectedItem.image_url ? (
-              <img
-                src={selectedItem.image_url}
-                alt={selectedItem.title}
-                className="w-24 h-24 rounded-lg object-cover"
-              />
-            ) : (
-              <div className="w-24 h-24 bg-gradient-to-b from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
-                <div className="text-gray-500 text-xs text-center p-2">
-                  {selectedItem.title}
-                </div>
-              </div>
-            )}
-            <div className="flex-1 space-y-2">
-              <div>
-                <p className="text-sm text-muted-foreground">アーティスト</p>
-                <p className="font-medium">{selectedItem.artist}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">種別: {selectedItem.spotify_type}</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <motion.button
-              type="button"
-              className="group relative inline-flex items-center h-10 rounded-lg border border-border bg-background hover:bg-accent overflow-hidden px-4"
-              onClick={() => openInSpotify(selectedItem.spotify_type, selectedItem.spotify_id)}
-              onMouseEnter={() => setHoveredButton(0)}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              <span className="flex items-center justify-center flex-shrink-0">
-                <ExternalLink className="h-4 w-4" />
-              </span>
-              <AnimatePresence>
-                {hoveredButton === 0 && (
-                  <motion.span
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: "auto", opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-                    className="overflow-hidden whitespace-nowrap ml-2 text-sm"
-                  >
-                    Spotifyで開く
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-            <motion.button
-              type="button"
-              className="group relative inline-flex items-center h-10 rounded-lg border border-border bg-background hover:bg-accent overflow-hidden px-4"
-              onClick={() => toast({ title: 'いいね！' })}
-              onMouseEnter={() => setHoveredButton(1)}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              <span className="flex items-center justify-center flex-shrink-0">
-                <Heart className="h-4 w-4" />
-              </span>
-              <AnimatePresence>
-                {hoveredButton === 1 && (
-                  <motion.span
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: "auto", opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-                    className="overflow-hidden whitespace-nowrap ml-2 text-sm"
-                  >
-                    いいね
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-            <motion.button
-              type="button"
-              className="group relative inline-flex items-center h-10 rounded-lg border border-border bg-background hover:bg-accent overflow-hidden px-4"
-              onClick={() => toast({ title: 'コメント機能' })}
-              onMouseEnter={() => setHoveredButton(2)}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              <span className="flex items-center justify-center flex-shrink-0">
-                <MessageCircle className="h-4 w-4" />
-              </span>
-              <AnimatePresence>
-                {hoveredButton === 2 && (
-                  <motion.span
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: "auto", opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-                    className="overflow-hidden whitespace-nowrap ml-2 text-sm"
-                  >
-                    コメント
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-            <motion.button
-              type="button"
-              className="group relative inline-flex items-center h-10 rounded-lg border border-border bg-background hover:bg-accent overflow-hidden px-4"
-              onClick={handleModalPlay}
-              onMouseEnter={() => setHoveredButton(3)}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              <span className="flex items-center justify-center flex-shrink-0">
-                <Play className="h-4 w-4" />
-              </span>
-              <AnimatePresence>
-                {hoveredButton === 3 && (
-                  <motion.span
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: "auto", opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-                    className="overflow-hidden whitespace-nowrap ml-2 text-sm"
-                  >
-                    再生
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-            <motion.button
-              type="button"
-              className="group relative inline-flex items-center h-10 rounded-lg border border-border bg-background hover:bg-accent overflow-hidden px-4"
-              onClick={handleModalPause}
-              onMouseEnter={() => setHoveredButton(4)}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              <span className="flex items-center justify-center flex-shrink-0">
-                <Pause className="h-4 w-4" />
-              </span>
-              <AnimatePresence>
-                {hoveredButton === 4 && (
-                  <motion.span
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: "auto", opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-                    className="overflow-hidden whitespace-nowrap ml-2 text-sm"
-                  >
-                    一時停止
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    )}
+    {/* 画像モーダルは廃止 */}
 
     <GlobalPlayer />
   </div>
