@@ -210,7 +210,13 @@ export async function setupVirtualFriendRequests() {
         const tracks = shelfTracks[shelf.name as keyof typeof shelfTracks] || []
         if (tracks.length === 0) continue
 
-        const itemsToInsert = tracks.map((t, idx) => ({
+        // お試しフレンド用に各棚の曲数を20曲に拡張（足りない分は循環で補完）
+        const desiredCount = 20
+        const expandedTracks = tracks.length >= desiredCount
+          ? tracks.slice(0, desiredCount)
+          : Array.from({ length: desiredCount }, (_, i) => tracks[i % tracks.length])
+
+        const itemsToInsert = expandedTracks.map((t, idx) => ({
           shelf_id: shelf.id,
           title: t.title,
           artist: t.artist,
