@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
 import { Share2, GripVertical, MessageCircle, Trash2, ExternalLink, Copy, StickyNote, Heart, Link as LinkIcon, Users, Settings, Music, PanelLeftClose, PanelLeftOpen, Plus, Pen, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -43,22 +44,44 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+interface Shelf {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  is_public: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+  icon_url: string | null
+}
+
 function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
   const [pending, setPending] = useState(false)
   const [expand, setExpand] = useState(false)
+  const [lastSubmitTime, setLastSubmitTime] = useState(0)
   
   const handleSubmit = async (formData: FormData) => {
+    // 重複送信を防ぐ（500ms以内の連続送信をブロック）
+    const now = Date.now()
+    if (now - lastSubmitTime < 500) {
+      return
+    }
+    setLastSubmitTime(now)
+    
     setPending(true)
     try {
       const res = await createShelf(formData) as any
       if (res?.error) {
-        alert(res.error)
+        // エラーはtoastで表示
+        console.error('Shelf creation error:', res.error)
         return
       }
       if (res?.shelf) {
         const shelf = res.shelf as { id: string; name: string }
         const addEvent = new CustomEvent('shelf:added', { detail: shelf })
         window.dispatchEvent(addEvent)
+        setExpand(false) // 作成後にフォームを閉じる
       }
     } finally {
       setPending(false)
@@ -80,7 +103,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                 <DialogTitle>棚を作成</DialogTitle>
               </DialogHeader>
               <form action={handleSubmit} className="flex gap-2">
-                <input name="name" placeholder="新しい棚名" className="flex-1 rounded px-2 py-1 text-base bg-black text-white outline-none" />
+                <input name="name" placeholder="新しいギャラリー名" className="flex-1 rounded px-2 py-1 text-base bg-black text-white outline-none" />
                 <Button type="submit" size="sm" disabled={pending} className="text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-200 border-none" style={{ backgroundColor: '#333333' }}>
         {pending ? '作成中...' : '作成'}
       </Button>
@@ -94,7 +117,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
           <div className={`transition-all duration-300 ease-out overflow-hidden ${expand ? 'w-64 sm:w-80 opacity-100' : 'w-0 opacity-0'} `}>
             <input
               name="name"
-              placeholder="新しい棚名"
+              placeholder="新しいギャラリー名"
               className="w-full rounded px-3 py-2 text-base bg-black text-white outline-none"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setExpand(false)
@@ -125,6 +148,7 @@ export default function AppHome() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [currentShelfItems, setCurrentShelfItems] = useState<any[]>([])
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0)
   const [needsReauth, setNeedsReauth] = useState(false)
@@ -147,6 +171,14 @@ export default function AppHome() {
         return
       }
       setUser(session.user)
+      try {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('avatar_url')
+          .eq('id', session.user.id)
+          .single()
+        if (profile?.avatar_url) setAvatarUrl(profile.avatar_url)
+      } catch {}
       setLoading(false)
       
       // フレンド申請数を取得
@@ -154,6 +186,17 @@ export default function AppHome() {
       setPendingFriendRequests(pendingCount.count)
     }
     init()
+
+    // プロフィール画像更新の即時反映
+    const onAvatar = (e: any) => {
+      const url = e.detail?.avatar_url
+      if (url) setAvatarUrl(url)
+    }
+    window.addEventListener('user:avatar-updated', onAvatar)
+    init()
+    return () => {
+      window.removeEventListener('user:avatar-updated', onAvatar)
+    }
   }, [router])
 
   useEffect(() => {
@@ -310,7 +353,7 @@ export default function AppHome() {
 
   return (
     <div className="relative min-h-screen bg-black">
-      <main className="px-4 pt-3 pb-20">
+      <main className="px-4 pt-3 pb-32">
         <div className="flex justify-between items-center mb-3">
           <h1 className="text-2xl font-bold text-white">Music Library</h1>
           <div className="flex items-center gap-3">
@@ -340,7 +383,7 @@ export default function AppHome() {
             </Button>
             <Link href="/app/friends?tab=mypage" className="ml-1.5">
               <Avatar className="h-10 w-10 cursor-pointer transition-all duration-200 hover:scale-110 hover:shadow-lg hover:ring-2 hover:ring-blue-400 hover:ring-opacity-50">
-                <AvatarImage src={user?.user_metadata?.picture || user?.user_metadata?.avatar_url} />
+                <AvatarImage src={avatarUrl || user?.user_metadata?.picture || user?.user_metadata?.avatar_url || undefined} />
                 <AvatarFallback>
                   {user?.user_metadata?.full_name?.[0] || user?.email?.[0] || 'U'}
                 </AvatarFallback>
@@ -427,21 +470,130 @@ function ShelfList({
   const [editingShelfId, setEditingShelfId] = useState<string | null>(null)
   const [icons, setIcons] = useState<Record<string, string>>({})
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean
+    shelfId: string | null
+    shelfName: string
+  }>({ open: false, shelfId: null, shelfName: '' })
+  const [deleteItemDialog, setDeleteItemDialog] = useState<{
+    open: boolean
+    itemId: string | null
+    itemName: string
+  }>({ open: false, itemId: null, itemName: '' })
 
-  // load icons from localStorage
+  // load icons from database
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('shelf:icons')
-      if (raw) setIcons(JSON.parse(raw))
-    } catch {}
+    const loadIcons = async () => {
+      try {
+        const { data: shelvesData } = await supabase
+          .from('shelves')
+          .select('id, icon_url')
+          .not('icon_url', 'is', null)
+        
+        if (shelvesData) {
+          const iconsMap: Record<string, string> = {}
+          shelvesData.forEach(shelf => {
+            if (shelf.icon_url) {
+              iconsMap[shelf.id] = shelf.icon_url
+            }
+          })
+          setIcons(iconsMap)
+        }
+      } catch (error) {
+        console.error('Failed to load shelf icons from database:', error)
+        // フォールバック: localStorageから読み込み
+        try {
+          const raw = localStorage.getItem('shelf:icons')
+          if (raw) setIcons(JSON.parse(raw))
+        } catch {}
+      }
+    }
+    
+    loadIcons()
   }, [])
 
-  const setIcon = (id: string, url: string) => {
-    setIcons(prev => {
-      const next = { ...prev, [id]: url }
-      try { localStorage.setItem('shelf:icons', JSON.stringify(next)) } catch {}
-      return next
-    })
+  const setIcon = async (id: string, url: string) => {
+    try {
+      console.log('Saving icon for shelf:', id, 'URL:', url)
+      
+      // データベースに保存
+      const { data, error } = await supabase
+        .from('shelves')
+        .update({ icon_url: url })
+        .eq('id', id)
+        .select()
+      
+      if (error) {
+        console.error('Failed to save shelf icon to database:', error)
+        // フォールバック: localStorageに保存
+        setIcons(prev => {
+          const next = { ...prev, [id]: url }
+          try { 
+            localStorage.setItem('shelf:icons', JSON.stringify(next)) 
+          } catch (e) {
+            console.error('Failed to save to localStorage:', e)
+          }
+          return next
+        })
+        return
+      }
+      
+      console.log('Icon saved successfully to database:', data)
+      
+      // ローカル状態を更新
+      setIcons(prev => ({ ...prev, [id]: url }))
+    } catch (error) {
+      console.error('Failed to save shelf icon:', error)
+      // フォールバック: localStorageに保存
+      setIcons(prev => {
+        const next = { ...prev, [id]: url }
+        try { 
+          localStorage.setItem('shelf:icons', JSON.stringify(next)) 
+        } catch (e) {
+          console.error('Failed to save to localStorage:', e)
+        }
+        return next
+      })
+    }
+  }
+
+  const handleDeleteShelf = async () => {
+    if (!deleteDialog.shelfId) return
+    
+    try {
+      const fd = new FormData()
+      fd.set('id', deleteDialog.shelfId)
+      const { deleteShelf } = await import('./actions')
+      await deleteShelf(fd)
+      setShelves((prev) => prev.filter((s) => s.id !== deleteDialog.shelfId))
+      // アイコンも削除
+      setIcons(prev => {
+        const next = { ...prev }
+        delete next[deleteDialog.shelfId!]
+        return next
+      })
+      setDeleteDialog({ open: false, shelfId: null, shelfName: '' })
+    } catch (error) {
+      console.error('Failed to delete shelf:', error)
+    }
+  }
+
+  const handleDeleteItem = async () => {
+    if (!deleteItemDialog.itemId) return
+    
+    try {
+      const fd = new FormData()
+      fd.set('id', deleteItemDialog.itemId)
+      const { deleteShelfItem } = await import('./actions')
+      await deleteShelfItem(fd)
+      // 楽曲削除イベントを発火
+      window.dispatchEvent(new CustomEvent('shelf:item-deleted', { 
+        detail: { itemId: deleteItemDialog.itemId } 
+      }))
+      setDeleteItemDialog({ open: false, itemId: null, itemName: '' })
+    } catch (error) {
+      console.error('Failed to delete item:', error)
+    }
   }
 
   // load item counts per shelf
@@ -561,36 +713,37 @@ function ShelfList({
   }
 
   return (
+    <>
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      onDragMove={handleDragMove}
+        onDragMove={handleDragMove}
     >
       <SortableContext items={shelves.map(shelf => shelf.id)} strategy={verticalListSortingStrategy}>
-        <ul className={`space-y-1 ${compact ? 'flex flex-col items-center' : ''}`}>
+          <ul className={`space-y-1 ${compact ? 'flex flex-col items-center' : ''}`}>
           {shelves.map((shelf) => (
             <SortableShelfItem
               key={shelf.id}
               shelf={shelf}
               isSelected={selectedShelfId === shelf.id}
-              iconUrl={icons[shelf.id]}
-              onIconChange={setIcon}
-              compact={compact}
-              count={counts[shelf.id] || 0}
+                iconUrl={icons[shelf.id]}
+                onIconChange={setIcon}
+                compact={compact}
+                count={counts[shelf.id] || 0}
               onSelect={() => {
                 setSelectedShelfId(shelf.id)
                 onShelfSelect(shelf.id)
               }}
-              onDelete={async () => {
-                const fd = new FormData()
-                fd.set('id', shelf.id)
-                const { deleteShelf } = await import('./actions')
-                await deleteShelf(fd)
-                setShelves((prev) => prev.filter((s) => s.id !== shelf.id))
-              }}
-              editingShelfId={editingShelfId}
-              setEditingShelfId={setEditingShelfId}
+                onDelete={() => {
+                  setDeleteDialog({
+                    open: true,
+                    shelfId: shelf.id,
+                    shelfName: shelf.name
+                  })
+                }}
+                editingShelfId={editingShelfId}
+                setEditingShelfId={setEditingShelfId}
             />
           ))}
         {shelves.length === 0 && (
@@ -599,6 +752,25 @@ function ShelfList({
         </ul>
       </SortableContext>
     </DndContext>
+      
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}
+        onConfirm={handleDeleteShelf}
+        title="ギャラリーを削除"
+        description="このギャラリーを削除しますか？この操作は取り消せません。"
+        itemName={deleteDialog.shelfName}
+      />
+      
+      <DeleteConfirmDialog
+        open={deleteItemDialog.open}
+        onOpenChange={(open) => setDeleteItemDialog(prev => ({ ...prev, open }))}
+        onConfirm={handleDeleteItem}
+        title="楽曲を削除"
+        description="この楽曲を削除しますか？この操作は取り消せません。"
+        itemName={deleteItemDialog.itemName}
+      />
+    </>
   )
 }
 
@@ -769,11 +941,12 @@ function SortableShelfItem({
       ref={(el) => { setNodeRef(el as any); rowRef.current = el }}
       style={{ 
         ...style,
-        backgroundColor: compact && isSelected ? 'transparent' : (isSelected ? '#2a2a2a' : 'transparent'),
+        // 背景色はクラスで制御（hoverが効くように）
+        backgroundColor: isSelected && compact ? 'transparent' : undefined,
         // 横方向の移動を制限
         transform: isDragging ? `translateY(${transform?.y || 0}px)` : CSS.Transform.toString(transform)
       }}
-      className={`flex items-center justify-between ${compact ? 'px-1 py-1' : 'px-2 py-1'} text-base rounded cursor-grab active:cursor-grabbing`}
+      className={`flex items-center justify-between ${compact ? 'px-1 py-1' : 'px-2 py-1'} text-base rounded cursor-grab active:cursor-grabbing transition-colors duration-200 ease-in-out ${isSelected && !compact ? 'bg-[#4d4d4d] hover:!bg-[#333333]' : ''} ${!isSelected && !compact ? 'hover:bg-[#333333]' : ''}`}
       data-shelf-selected={isSelected}
       data-shelf-id={shelf.id}
       {...dragAttributes}
@@ -782,7 +955,7 @@ function SortableShelfItem({
       <div className={`flex items-center ${compact ? 'gap-0.5' : 'gap-2'} flex-1 min-w-0`} onClick={onSelect} title={compact ? shelf.name : undefined}>
         {/* Icon/avatar */}
         <div 
-          className={`shrink-0 relative group ${compact && isSelected ? 'ring-2 ring-white rounded-lg' : ''} ${compact ? 'hover:scale-110 transition-transform duration-200 ease-out' : ''}`}
+          className={`shrink-0 relative ${compact && isSelected ? 'ring-2 ring-white rounded-lg' : ''} ${compact ? 'hover:scale-110 transition-transform duration-200 ease-out' : ''}`}
           onClick={(e) => {
             // 細い時は棚選択を許可するため、stopPropagationしない
             if (!compact) {
@@ -822,7 +995,7 @@ function SortableShelfItem({
               title={undefined}
             >
               {shelf.name?.[0] || '棚'}
-            </div>
+      </div>
           )}
           {isEditingIcon && (
             <div className="absolute inset-0 rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -859,7 +1032,7 @@ function SortableShelfItem({
         <input id={`icon-input-${shelf.id}`} type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
         {!compact && (
           <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="truncate text-white h-5 leading-5" style={{ fontFamily: 'inherit' }}>{shelf.name}</div>
+            <div className={`truncate text-white h-5 leading-5`} style={{ fontFamily: 'inherit' }}>{shelf.name}</div>
             <div className="text-xs text-muted-foreground">{count} 曲</div>
           </div>
         )}
@@ -896,7 +1069,6 @@ function SortableShelfItem({
                   e.preventDefault()
                   e.stopPropagation()
                   console.log('Delete button clicked')
-          if (!confirm('この棚を削除しますか？この操作は取り消せません。')) return
           onDelete()
                   setShowButtons(false)
                 }}
@@ -914,7 +1086,7 @@ function SortableShelfItem({
               console.log('Dropdown button clicked, toggling buttons')
               setShowButtons(!showButtons)
             }}
-            className="p-2 text-white hover:bg-gray-800 rounded transition-colors"
+            className={`p-2 text-white hover:bg-gray-800 rounded transition-colors`}
             aria-label="メニューを開く"
           >
             <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showButtons ? 'rotate-180' : ''}`} />
@@ -1005,9 +1177,9 @@ function SortableShelfItem({
               style={{ backgroundColor: 'transparent' }}>
                 <span className="relative z-10">保存</span>
                 <div className="absolute bottom-1 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></div>
-              </Button>
+        </Button>
               <Button 
-                onClick={() => { if (confirm('この棚を削除しますか？この操作は取り消せません。')) { onDelete(); setShowEditModal(false); setIsEditingIcon(false); setEditIconUrl(undefined); } }}
+                onClick={() => { onDelete(); setShowEditModal(false); setIsEditingIcon(false); setEditIconUrl(undefined); }}
                 className="group relative text-[#dc2626] bg-transparent hover:bg-transparent transition-all duration-300 focus:outline-none focus:ring-0 border-none p-0"
                 style={{ backgroundColor: 'transparent' }}>
                 <span className="relative z-10">削除</span>
@@ -1027,6 +1199,7 @@ function SearchPanel() {
   const [adding, setAdding] = useState<string | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [notifiedAuthMissing, setNotifiedAuthMissing] = useState(false)
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const { toast } = useToast()
 
   // ドロップダウン外をクリックした時に閉じる
@@ -1046,6 +1219,15 @@ function SearchPanel() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isDropdownOpen])
+
+  // コンポーネントのアンマウント時にタイムアウトをクリア
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout)
+      }
+    }
+  }, [searchTimeout])
 
   // 入力時に認証切れを検知して通知（多重通知を抑制）
   const checkAuthAndNotify = async () => {
@@ -1071,25 +1253,38 @@ function SearchPanel() {
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value
     setQuery(v)
-    if (v) {
+    
+    // 既存のタイムアウトをクリア
+    if (searchTimeout) {
+      clearTimeout(searchTimeout)
+    }
+    
+    if (v.trim()) {
       void checkAuthAndNotify()
+      
+      // 500ms後に自動検索を実行
+      const timeout = setTimeout(async () => {
+        await performSearch(v)
+      }, 500)
+      setSearchTimeout(timeout)
     } else {
       setNotifiedAuthMissing(false)
+      setResults([])
+      setIsDropdownOpen(false)
     }
   }
 
-  async function onSearch(e: React.FormEvent) {
-    e.preventDefault()
+  const performSearch = async (searchQuery: string) => {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.provider_token
-    if (!query) return
+    if (!searchQuery.trim()) return
     if (!token) {
       window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
       toast({ title: 'Spotifyに再ログインしてください' })
       return
     }
 
-    const params = new URLSearchParams({ q: query, type: 'track', limit: '10' })
+    const params = new URLSearchParams({ q: searchQuery, type: 'track', limit: '10' })
     const res = await fetch(`https://api.spotify.com/v1/search?${params}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -1109,6 +1304,11 @@ function SearchPanel() {
     }))
     setResults(list)
     setIsDropdownOpen(true)
+  }
+
+  async function onSearch(e: React.FormEvent) {
+    e.preventDefault()
+    await performSearch(query)
   }
 
   async function addToShelf(r: any) {
@@ -1148,8 +1348,7 @@ function SearchPanel() {
       window.dispatchEvent(new CustomEvent('shelf:item-added', { 
         detail: { ...res.item, shelf_id: shelfId } 
       }))
-      // ドロップダウンを閉じる
-      setIsDropdownOpen(false)
+      // 追加後はドロップダウンを閉じない（検索結果エリア外をクリックするまで開いたまま）
     }
   }
 
@@ -1377,6 +1576,8 @@ function ShelfView({ onShelfItemsChange, currentTrack, toast }: { onShelfItemsCh
 }
 
 function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item: any, onClick?: () => void, isCurrentlyPlaying?: boolean, toast: any }) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  
   const {
     attributes,
     listeners,
@@ -1392,6 +1593,22 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
     transition,
     opacity: isDragging ? 0.3 : 1,
     zIndex: isDragging ? 1000 : 1,
+  }
+
+  const handleDeleteItem = async () => {
+    try {
+      const fd = new FormData()
+      fd.set('id', item.id)
+      const { deleteShelfItem } = await import('./actions')
+      await deleteShelfItem(fd)
+      // 楽曲削除イベントを発火
+      window.dispatchEvent(new CustomEvent('shelf:item-deleted', { 
+        detail: { itemId: item.id } 
+      }))
+      setShowDeleteDialog(false)
+    } catch (error) {
+      console.error('Failed to delete item:', error)
+    }
   }
 
   return (
@@ -1470,10 +1687,7 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
               title="削除"
               onClick={(e) => {
                 e.stopPropagation()
-                if (confirm('このアイテムを削除しますか？')) {
-                  const { deleteShelfItem } = require('./actions')
-                  deleteShelfItem(new FormData().append('id', item.id))
-                }
+                setShowDeleteDialog(true)
               }}
             >
               <Trash2 className="h-4 w-4 text-red-500 transition-transform duration-100 hover:scale-125" strokeWidth={2} />
@@ -1564,6 +1778,15 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
           <div className="text-xs text-muted-foreground truncate">{item.artist}</div>
         </div>
       </motion.div>
+      
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDeleteItem}
+        title="楽曲を削除"
+        description="この楽曲を削除しますか？この操作は取り消せません。"
+        itemName={item?.title}
+      />
     </div>
   )
 }
@@ -1579,6 +1802,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   const [likeCount, setLikeCount] = useState(0)
   const [commentCount, setCommentCount] = useState(0)
   const [likes, setLikes] = useState<any[]>([])
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [comments, setComments] = useState<any[]>([])
   const [isLoadingCounts, setIsLoadingCounts] = useState(false)
 
@@ -1669,7 +1893,6 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
 
   if (!item) return null
   async function handleDelete() {
-    if (!confirm('この曲を削除しますか？この操作は取り消せません。')) return
     const fd = new FormData()
     fd.set('id', item.id)
     const { deleteShelfItem } = await import('./actions')
@@ -1771,7 +1994,8 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
 
   async function handleMemoSave() {
     if (memo.length > 20) {
-      alert("メモは20文字以内で入力してください")
+      // メモの文字数制限エラーはtoastで表示
+      console.error("メモは20文字以内で入力してください")
       return
     }
 
@@ -1784,7 +2008,8 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
     setIsMemoLoading(false)
     
     if (res?.error) {
-      alert(res.error)
+      // エラーはtoastで表示
+      console.error('Memo save error:', res.error)
     } else {
       setIsMemoOpen(false)
       // Update the item with the new memo
@@ -1794,7 +2019,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[520px] pb-3 bg-[#1a1a1a] text-white [&>button]:text-[#b3b3b3] [&>button:hover]:text-[#cccccc]">
+        <DialogContent className="sm:max-w-[520px] pb-3 bg-[#1a1a1a] text-white [&>button]:text-[#666666] [&>button:hover]:text-red-500 [&>button]:bg-transparent [&>button:hover]:bg-transparent">
           <div className="relative">
             <DialogHeader>
               <DialogTitle className="flex-1 min-w-0 text-white">{item.title}</DialogTitle>
@@ -1987,7 +2212,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
             <button
               type="button"
               className="group flex items-center overflow-hidden w-10 h-10 hover:w-24 transition-all duration-300 rounded-full border-0 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-              onClick={handleDelete}
+              onClick={() => setShowDeleteDialog(true)}
               aria-label="削除"
             >
               <span className="flex items-center justify-center text-red-600 ml-1">
@@ -2072,6 +2297,27 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
         </div>
       </DialogContent>
     </Dialog>
+      
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={async () => {
+          setIsLoading(true)
+          try {
+            await handleDelete()
+            onOpenChange(false)
+            setShowDeleteDialog(false)
+          } catch (error) {
+            console.error('Delete failed:', error)
+          } finally {
+            setIsLoading(false)
+          }
+        }}
+        title="楽曲を削除"
+        description="この楽曲を削除しますか？この操作は取り消せません。"
+        itemName={item?.title}
+        isLoading={isLoading}
+      />
     </>
   )
 }

@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Search, UserPlus, UserMinus, UserCheck, UserX, Shield, Eye, ArrowLeft, User, Camera, LogOut, Wand2 } from "lucide-react"
-import { sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, searchUsers, updateProfile, getPendingFriendRequestsCount } from "@/app/app/friends-actions"
+import { sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, searchUsers, updateProfile, getPendingFriendRequestsCount } from "@/app/app/friends-actions"
 import { signOut } from "@/lib/auth"
 import { setupVirtualFriendRequests, clearVirtualFriendRequests } from "@/app/app/virtual-friend-setup"
 import { updateVirtualFriendImages } from "@/app/app/update-virtual-friend-images"
@@ -48,8 +48,9 @@ export default function FriendsPage() {
   const [profile, setProfile] = useState<UserType | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const profileFormRef = useRef<HTMLFormElement | null>(null)
   const [isSearching, setIsSearching] = useState(false)
-  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const { toast } = useToast()
 
   // プロフィール情報を読み込み
@@ -300,6 +301,12 @@ export default function FriendsPage() {
           variant: "destructive"
         })
       } else {
+        // ホームの右上アイコンへ即時反映
+        if ((result as any).avatarUrl) {
+          try {
+            window.dispatchEvent(new CustomEvent('user:avatar-updated', { detail: { avatar_url: (result as any).avatarUrl } }))
+          } catch {}
+        }
         toast({
           title: "成功",
           description: "プロフィールを更新しました"
@@ -327,7 +334,9 @@ export default function FriendsPage() {
   }
 
   const handleAvatarClick = () => {
-    avatarInputRef?.click()
+    if (avatarInputRef.current) {
+      avatarInputRef.current.click()
+    }
   }
 
   const handleSetupVirtualFriends = async () => {
@@ -755,12 +764,12 @@ export default function FriendsPage() {
             </CardHeader>
             <CardContent>
               {profile && (
-                <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <form ref={profileFormRef} onSubmit={handleUpdateProfile} className="space-y-4">
                   <div className="space-y-4">
                     <div className="flex items-center gap-4">
                       <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <Avatar className="h-16 w-16 transition-all duration-200 group-hover:scale-105">
-                          <AvatarImage src={profile.avatar_url || undefined} />
+                          <AvatarImage src={profile.avatar_url ? `${profile.avatar_url}?v=${Date.now()}` : undefined} />
                           <AvatarFallback>{profile.display_name[0]}</AvatarFallback>
                         </Avatar>
                         <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -776,11 +785,18 @@ export default function FriendsPage() {
                   
                   {/* 隠しファイル入力 */}
                   <input
-                    ref={avatarInputRef}
+                    ref={(el) => { avatarInputRef.current = el }}
                     name="avatar"
                     type="file"
                     accept="image/*"
                     className="hidden"
+                    onChange={(e) => {
+                      const file = e.currentTarget.files && e.currentTarget.files[0]
+                      if (file) {
+                        // 自動送信してすぐ反映
+                        profileFormRef.current?.requestSubmit()
+                      }
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
                     アバター画像をクリックして変更できます。JPG、PNG、GIF形式に対応（最大5MB）

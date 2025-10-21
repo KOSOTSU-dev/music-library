@@ -229,11 +229,20 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
   useEffect(() => {
     const loadShelfData = async () => {
       try {
+        // shelfIdが"not-found"または無効なUUIDの場合はエラーページを表示
+        if (shelfId === 'not-found' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shelfId)) {
+          console.log('❌ フレンドギャラリー - 無効な棚ID:', shelfId)
+          setError('ギャラリーが存在しません')
+          return
+        }
+
         // 現在のユーザーIDを取得
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        console.log('🔐 フレンドギャラリー - 認証状態:', { user: user?.id, authError })
         setCurrentUserId(user?.id || null)
 
-        // フレンドの全公開棚を取得
+        // フレンドの全棚を取得
+        console.log('📚 フレンドギャラリー - 全棚取得:', { userId })
         const { data: allShelvesData, error: allShelvesError } = await supabase
           .from('shelves')
           .select(`
@@ -241,16 +250,45 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             user:users(*)
           `)
           .eq('user_id', userId)
-          .eq('is_public', true)
           .order('sort_order', { ascending: true })
 
+        console.log('📚 フレンドギャラリー - 全棚結果:', { allShelvesData, allShelvesError })
+
         if (allShelvesError) {
-          console.error('棚一覧の読み込みエラー:', allShelvesError)
+          console.error('❌ 棚一覧の読み込みエラー:', allShelvesError)
         } else {
+          console.log('✅ 棚一覧の読み込み成功:', allShelvesData?.length || 0, '個の棚')
           setAllShelves(allShelvesData || [])
         }
 
         // 棚の詳細情報を取得
+        console.log('🔍 フレンドギャラリー - 棚詳細取得開始:', { userId, shelfId })
+        
+        // まず、その棚IDが存在するかどうかを確認
+        const { data: shelfExists, error: existsError } = await supabase
+          .from('shelves')
+          .select('id, user_id')
+          .eq('id', shelfId)
+          .single()
+        
+        console.log('✅ フレンドギャラリー - 棚存在確認:', { shelfExists, existsError })
+        
+        // デバッグ: そのユーザーの全棚を確認
+        const { data: userShelves, error: userShelvesError } = await supabase
+          .from('shelves')
+          .select('id, name, user_id')
+          .eq('user_id', userId)
+        
+        console.log('📋 フレンドギャラリー - ユーザーの全棚:', { userShelves, userShelvesError })
+        
+        // デバッグ: その棚IDの全データを確認
+        const { data: allShelfData, error: allShelfError } = await supabase
+          .from('shelves')
+          .select('*')
+          .eq('id', shelfId)
+        
+        console.log('🗂️ フレンドギャラリー - 棚IDの全データ:', { allShelfData, allShelfError })
+        
         const { data: shelfData, error: shelfError } = await supabase
           .from('shelves')
           .select(`
@@ -258,12 +296,38 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             user:users(*)
           `)
           .eq('id', shelfId)
-          .eq('user_id', userId)
-          .eq('is_public', true)
           .single()
 
+        console.log('🎯 フレンドギャラリー - 棚詳細結果:', { shelfData, shelfError })
+
         if (shelfError || !shelfData) {
-          setError('棚が見つからないか、公開されていません')
+          console.error('❌ フレンドギャラリー - 棚が見つからない:', { 
+            shelfError: shelfError ? {
+              message: shelfError.message,
+              details: shelfError.details,
+              hint: shelfError.hint,
+              code: shelfError.code
+            } : null,
+            shelfData,
+            shelfId,
+            userId
+          })
+          
+          if (shelfError) {
+            setError(`ギャラリーの読み込みに失敗しました: ${shelfError.message}`)
+          } else {
+            setError('ギャラリーが存在しません')
+          }
+          return
+        }
+
+        // 棚が指定されたユーザーのものかどうかを確認
+        if (shelfData.user_id !== userId) {
+          console.error('フレンドギャラリー - 棚の所有者が一致しません:', { 
+            shelfUserId: shelfData.user_id, 
+            requestedUserId: userId 
+          })
+          setError('ギャラリーが存在しません')
           return
         }
 
@@ -433,7 +497,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
 
   return (
     <div className="relative min-h-screen bg-black text-white">
-      <div className="max-w-6xl mx-auto p-6 pb-24 space-y-6">
+      <div className="w-full px-6 pb-24 space-y-1">
         {/* ヘッダー */}
         <div className="flex items-center gap-4">
         <Button asChild variant="outline" size="sm" className="text-white bg-[#1a1a1a] border-[#1a1a1a] hover:bg-[#333333]">
@@ -443,7 +507,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
           </Link>
         </Button>
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 mt-3">
             <Avatar className="h-6 w-6">
               <AvatarImage src={shelf.user.avatar_url || undefined} />
               <AvatarFallback>{shelf.user.display_name[0]}</AvatarFallback>
@@ -483,7 +547,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-white">
               <Music className="h-5 w-5" />
-              楽曲一覧
+              {shelf?.name || 'ギャラリー'}
               <span className="text-sm text-muted-foreground font-normal ml-2">
                 ({items.length}曲)
               </span>
@@ -500,7 +564,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
               この棚にはまだ楽曲がありません
             </p>
           ) : (
-            <div className="grid gap-x-4 gap-y-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(140px,1fr))]">
               {items.map((item, index) => (
                 <motion.div
                   key={item.id}
@@ -512,66 +576,75 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                   <Card 
                     className="group transition-colors duration-200 bg-[#333333] hover:bg-[#4d4d4d] border-[#333333] py-1 gap-1"
                   >
-                    <CardContent className="px-3 py-0">
-                      <div className="aspect-[3/4] rounded-lg mb-2 mt-1 relative overflow-hidden bg-[#333333]">
+                    <CardContent className="px-2 py-0">
+                      <div className="aspect-square rounded-lg mb-2 mt-1 relative overflow-hidden bg-[#333333] group">
                         {item.image_url ? (
                           <img 
                             src={item.image_url} 
                             alt={item.title}
-                            className="w-full h-full object-cover rounded-lg"
+                            className="w-full h-full object-contain rounded-lg transition-opacity duration-200 group-hover:opacity-50"
                           />
                         ) : (
-                          <div className="w-full h-full rounded-lg flex items-center justify-center bg-[#333333]">
+                          <div className="w-full h-full rounded-lg flex items-center justify-center bg-[#333333] transition-opacity duration-200 group-hover:opacity-50">
                             <div className="text-gray-400 text-xs text-center p-2">
                               {item.title}
                             </div>
                           </div>
                         )}
+                        
+
+                        {/* ホバー時の再生・開くボタン */}
+                        <div className="absolute inset-0 flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handlePlay(item)
+                              }}
+                              className="bg-transparent text-white hover:bg-transparent rounded-full p-2 transition-all duration-200 hover:scale-110"
+                              title="再生"
+                            >
+                              <Play className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                window.open(`https://open.spotify.com/${item.spotify_type}/${item.spotify_id}`, '_blank')
+                              }}
+                              className="bg-transparent text-white hover:bg-transparent rounded-full p-2 transition-all duration-200 hover:scale-110"
+                              title="Spotifyで開く"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div className="space-y-1 text-white">
                         <div className="flex items-center gap-3">
                           <h3 className="font-medium text-sm truncate text-white flex-1 min-w-0">{item.title}</h3>
-                          <div className="flex items-center gap-2 ml-auto">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLike(item.id)
-                              }}
-                              className="flex items-center gap-1 text-xs text-white hover:text-red-500 transition-colors"
-                            >
-                              <Heart className={`h-4 w-4 ${userLikes[item.id] ? 'fill-red-500 text-red-500' : ''}`} />
-                              <span>{likeCounts[item.id] || 0}</span>
-                            </button>
-                            <div className="flex items-center gap-1 text-xs text-white hover:-translate-y-1 transition-transform duration-200 ease-out">
-                              <MessageCircle className="h-4 w-4" />
-                              <span>{commentCounts[item.id] || 0}</span>
-                            </div>
-                          </div>
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{item.artist}</p>
                         {item.album && (
-                          <p className="text-xs text-muted-foreground truncate">{item.album}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{item.album}</p>
+                            <div className="flex items-center gap-2 ml-auto">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleLike(item.id)
+                                }}
+                                className="flex items-center gap-1 text-xs text-white hover:text-red-500 transition-colors"
+                              >
+                                <Heart className={`h-4 w-4 ${userLikes[item.id] ? 'fill-red-500 text-red-500' : ''}`} />
+                                <span>{likeCounts[item.id] || 0}</span>
+                              </button>
+                              <div className="flex items-center gap-1 text-xs text-white hover:-translate-y-1 transition-transform duration-200 ease-out">
+                                <MessageCircle className="h-4 w-4" />
+                                <span>{commentCounts[item.id] || 0}</span>
+                              </div>
+                            </div>
+                          </div>
                         )}
-                        <div className="flex items-center gap-2 mt-0.5 mb-0.5">
-                              <button
-                                type="button"
-                                className="group/button flex items-center justify-center overflow-hidden w-9 h-9 hover:w-16 transition-all duration-300 rounded-full border-0 bg-black hover:bg-white text-white hover:text-black px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-                                onClick={(e) => { e.stopPropagation(); openInSpotify(item.spotify_type, item.spotify_id) }}
-                                title="外部で開く"
-                              >
-                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-current" />
-                                <span className="ml-0 w-0 overflow-hidden text-xs whitespace-nowrap opacity-0 transition-all duration-300 group-hover/button:opacity-100 group-hover/button:w-auto group-hover/button:ml-1">開く</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="group/button flex items-center justify-center overflow-hidden w-9 h-9 hover:w-16 transition-all duration-300 rounded-full border-0 bg-black hover:bg-white text-white hover:text-black px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-                                onClick={(e) => { e.stopPropagation(); handlePlay(item) }}
-                                title="再生"
-                              >
-                                <Play className="h-4 w-4 flex-shrink-0 text-current" />
-                                <span className="ml-0 w-0 overflow-hidden text-xs whitespace-nowrap opacity-0 transition-all duration-300 group-hover/button:opacity-100 group-hover/button:w-auto group-hover/button:ml-1">再生</span>
-                              </button>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>

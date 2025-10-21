@@ -1,6 +1,7 @@
 "use server"
 
 import { getServerSupabase } from "@/lib/server-supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { revalidatePath } from "next/cache"
 
 // フレンド申請を送信
@@ -116,32 +117,7 @@ export async function removeFriend(formData: FormData) {
 }
 
 // フレンドをブロック
-export async function blockUser(formData: FormData) {
-  const userId = String(formData.get('userId') || '')
-  if (!userId) return { error: 'ユーザーIDが必要です' }
-
-  const supabase = await getServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: '未認証です' }
-
-  if (user.id === userId) {
-    return { error: '自分自身をブロックすることはできません' }
-  }
-
-  // 既存の関係を削除またはブロックに更新
-  const { error } = await supabase
-    .from('friends')
-    .upsert({
-      user_id: user.id,
-      friend_id: userId,
-      status: 'blocked'
-    }, { onConflict: 'user_id,friend_id' })
-
-  if (error) return { error: error.message }
-
-  revalidatePath('/app')
-  return { success: true }
-}
+// blockUser: 一旦未使用（機能停止）
 
 // ユーザー検索
 export async function searchUsers(formData: FormData) {
@@ -200,18 +176,38 @@ export async function updateProfile(formData: FormData) {
 
   // アバター画像のアップロード
   if (avatarFile && avatarFile.size > 0) {
+    // バケット存在チェック（なければ作成）
+    try {
+      await supabaseAdmin.storage.createBucket('avatars', {
+        public: true,
+        fileSizeLimit: 5 * 1024 * 1024,
+        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+      })
+    } catch (e: any) {
+      // 既に存在する場合は無視（409など）
+      if (typeof e?.message === 'string' && !e.message.includes('already exists')) {
+        // その他のエラーは返す
+        return { error: `ストレージの準備に失敗しました: ${e.message}` }
+      }
+    }
+    // 5MB上限（必要なら変更）
+    const maxBytes = 5 * 1024 * 1024
+    if (avatarFile.size > maxBytes) {
+      return { error: 'アバター画像が大きすぎます（最大5MB）' }
+    }
     const fileExt = avatarFile.name.split('.').pop()
     const fileName = `${user.id}-${Date.now()}.${fileExt}`
     
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // RLS回避のためアップロードは service role を使用
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('avatars')
-      .upload(fileName, avatarFile)
+      .upload(fileName, avatarFile, { upsert: true, contentType: avatarFile.type || undefined })
 
     if (uploadError) {
-      return { error: 'アバター画像のアップロードに失敗しました' }
+      return { error: `アバター画像のアップロードに失敗しました: ${uploadError.message}` }
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = supabaseAdmin.storage
       .from('avatars')
       .getPublicUrl(fileName)
 
@@ -234,10 +230,10 @@ export async function updateProfile(formData: FormData) {
     .update(updateData)
     .eq('id', user.id)
 
-  if (error) return { error: error.message }
+  if (error) return { error: `プロフィール更新に失敗しました: ${error.message}` }
 
   revalidatePath('/app')
-  return { success: true }
+  return { success: true, avatarUrl: avatarUrl || null }
 }
 
 // フレンド申請数を取得

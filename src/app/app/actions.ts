@@ -25,8 +25,8 @@ export async function createShelf(formData: FormData) {
   }, { onConflict: 'id' })
 
   const { error, data } = await supabase
-    .from("shelves")
-    .insert({ user_id: user.id, name })
+    .from('shelves')
+    .insert({ user_id: user.id, name, is_public: true })
     .select('id, name, created_at')
     .single()
 

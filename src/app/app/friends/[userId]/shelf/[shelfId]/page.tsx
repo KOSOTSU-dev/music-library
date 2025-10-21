@@ -3,17 +3,19 @@ import FriendShelfDetail from "@/components/friends/FriendShelfDetail"
 import { Toaster } from "@/components/ui/toaster"
 
 interface PageProps {
-  params: {
+  params: Promise<{
     userId: string
     shelfId: string
-  }
+  }>
 }
 
-export default function FriendShelfPage({ params }: PageProps) {
+export default async function FriendShelfPage({ params }: PageProps) {
+  const { userId, shelfId } = await params
+  
   return (
     <>
       <Suspense fallback={<div className="min-h-screen bg-black text-white grid place-items-center">読み込み中...</div>}>
-        <FriendShelfDetail userId={params.userId} shelfId={params.shelfId} />
+        <FriendShelfDetail userId={userId} shelfId={shelfId} />
       </Suspense>
       <Toaster />
     </>

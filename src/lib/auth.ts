@@ -11,7 +11,9 @@ export interface User {
 }
 
 // Spotify OAuth認証
-export async function signInWithSpotify() {
+export async function signInWithSpotify(options?: { forceReauth?: boolean }) {
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL
+  
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'spotify',
     options: {
@@ -24,10 +26,12 @@ export async function signInWithSpotify() {
         'playlist-read-private',
         'playlist-read-collaborative',
       ].join(' '),
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      redirectTo: `${baseUrl}/auth/callback?next=/app`,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
+        // forceReauthがtrueの場合のみshow_dialogをtrueにする
+        ...(options?.forceReauth && { show_dialog: 'true' }),
       },
     },
   })
@@ -44,6 +48,62 @@ export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) {
     throw error
+  }
+  
+  // ログアウト後にセッションを確実にクリアしてログインページにリダイレクト
+  if (typeof window !== 'undefined') {
+    // localStorageをクリア（アイコン以外）
+    try {
+      const keysToKeep = ['shelf:icons'] // アイコンは保持
+      const allKeys = Object.keys(localStorage)
+      allKeys.forEach(key => {
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key)
+        }
+      })
+    } catch (e) {
+      console.warn('localStorage clear failed:', e)
+    }
+    
+    // セッションストレージもクリア
+    try {
+      sessionStorage.clear()
+    } catch (e) {
+      console.warn('sessionStorage clear failed:', e)
+    }
+    
+    // ページをリロードしてからログインページに移動
+    window.location.replace('/login')
+  }
+}
+
+// 完全なログアウト（Spotifyセッションも含む）
+export async function fullSignOut() {
+  if (typeof window !== 'undefined') {
+    // まずSupabaseからログアウト
+    await signOut()
+    
+    // localStorageとsessionStorageをクリア（アイコン以外）
+    try {
+      const keysToKeep = ['shelf:icons'] // アイコンは保持
+      const allKeys = Object.keys(localStorage)
+      allKeys.forEach(key => {
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key)
+        }
+      })
+    } catch (e) {
+      console.warn('localStorage clear failed:', e)
+    }
+    try {
+      sessionStorage.clear()
+    } catch (e) {
+      console.warn('sessionStorage clear failed:', e)
+    }
+
+    // Spotifyのログアウトページにリダイレクトし、完了後にMusic Libraryに戻る
+    const spotifyLogoutUrl = `https://accounts.spotify.com/logout?continue=${encodeURIComponent(window.location.origin + '/login?force_spotify_reauth=true')}`
+    window.location.href = spotifyLogoutUrl
   }
 }
 

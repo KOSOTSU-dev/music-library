@@ -12,14 +12,38 @@ export default function Home() {
 
   useEffect(() => {
     const init = async () => {
-      // URLハッシュのaccess_tokenを処理しつつセッションを取得
-      const { data: { session } } = await supabase.auth.getSession()
-      setHasSession(!!session)
-      if (session) {
-        router.replace('/app')
+      try {
+        // URLハッシュのaccess_tokenを処理しつつセッションを取得
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session error:', error)
+          setHasSession(false)
+          return
+        }
+        
+        setHasSession(!!session)
+        if (session) {
+          router.replace('/app')
+        }
+      } catch (error) {
+        console.error('Session check failed:', error)
+        setHasSession(false)
       }
     }
+    
     init()
+    
+    // 認証状態の変更を監視
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        router.replace('/app')
+      } else if (event === 'SIGNED_OUT') {
+        setHasSession(false)
+      }
+    })
+    
+    return () => subscription.unsubscribe()
   }, [router])
 
   return (
