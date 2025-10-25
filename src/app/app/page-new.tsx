@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Play, Pause, SkipBack, SkipForward } from "lucide-react"
+import { Play, Pause, SkipBack, SkipForward, X, ExternalLink, Copy, Move, Trash2 } from "lucide-react"
 import { Share2, GripVertical } from "lucide-react"
 import GlobalPlayer from "@/components/GlobalPlayer"
 import { signOut } from "@/lib/auth"
@@ -173,10 +173,10 @@ export default function AppHome() {
       setIsPlaying(true)
     }
 
-    window.addEventListener('shelf:item-added', onItemAdded)
+    window.addEventListener('shelf:item-added', onItemAdded as EventListener)
     window.addEventListener('track:playing', handleTrackPlaying as EventListener)
     return () => {
-      window.removeEventListener('shelf:item-added', onItemAdded)
+      window.removeEventListener('shelf:item-added', onItemAdded as EventListener)
       window.removeEventListener('track:playing', handleTrackPlaying as EventListener)
     }
   }, [selectedShelfId])
@@ -284,21 +284,19 @@ function ShelfList({
     const { active, over } = event
 
     if (active.id !== over?.id) {
-      setShelves((shelves) => {
-        const oldIndex = shelves.findIndex((shelf) => shelf.id === active.id)
-        const newIndex = shelves.findIndex((shelf) => shelf.id === over?.id)
-        const newShelves = arrayMove(shelves, oldIndex, newIndex)
-        
-        // サーバーに並び順を保存
-        const shelfIds = newShelves.map(shelf => shelf.id)
-        const fd = new FormData()
-        fd.set('shelfIds', JSON.stringify(shelfIds))
-        
-        // 非同期でサーバー更新（楽観的更新）
-        reorderShelves(fd)
-        
-        return newShelves
-      })
+      const oldIndex = shelves.findIndex((shelf) => shelf.id === active.id)
+      const newIndex = shelves.findIndex((shelf) => shelf.id === over?.id)
+      const newShelves = arrayMove(shelves, oldIndex, newIndex)
+      
+      // サーバーに並び順を保存
+      const shelfIds = newShelves.map(shelf => shelf.id)
+      const fd = new FormData()
+      fd.set('shelfIds', JSON.stringify(shelfIds))
+      
+      // 非同期でサーバー更新（楽観的更新）
+      reorderShelves(fd)
+      
+      setShelves(newShelves)
     }
   }
 
@@ -488,7 +486,7 @@ function ShelfView({ onShelfItemsChange, currentTrack }: { onShelfItemsChange: (
         // サーバーに並び順を保存
         const itemIds = newItems.map(item => item.id)
         const fd = new FormData()
-        fd.set('shelfId', selectedShelfId)
+        fd.set('shelfId', selectedShelfId || '')
         fd.set('itemIds', JSON.stringify(itemIds))
         
         // 非同期でサーバー更新（楽観的更新）

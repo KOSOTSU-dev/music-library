@@ -1,10 +1,10 @@
 'use server'
 
-import { createServerClient } from '@/lib/server-supabase'
+import { getServerSupabase } from '@/lib/server-supabase'
 import { revalidatePath } from 'next/cache'
 
 export async function addComment(shelfItemId: string, content: string) {
-  const supabase = await createServerClient()
+  const supabase = await getServerSupabase()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -31,7 +31,7 @@ export async function addComment(shelfItemId: string, content: string) {
 }
 
 export async function deleteComment(commentId: string) {
-  const supabase = await createServerClient()
+  const supabase = await getServerSupabase()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -68,7 +68,7 @@ export async function deleteComment(commentId: string) {
 }
 
 export async function toggleCommentLike(commentId: string) {
-  const supabase = await createServerClient()
+  const supabase = await getServerSupabase()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
