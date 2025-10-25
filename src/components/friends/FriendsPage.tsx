@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -38,7 +38,7 @@ interface Friend {
   friend: UserType
 }
 
-export default function FriendsPage() {
+function FriendsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "friends")
@@ -895,5 +895,13 @@ export default function FriendsPage() {
         itemName={deleteDialog.friendName}
       />
     </div>
+  )
+}
+
+export default function FriendsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black text-white grid place-items-center p-4">読み込み中...</div>}>
+      <FriendsPageContent />
+    </Suspense>
   )
 }
