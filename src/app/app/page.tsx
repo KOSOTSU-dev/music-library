@@ -1950,11 +1950,40 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
         })
         
         if (transferRes.ok) {
-          console.log('デバイス転送成功、少し待機します')
-          // デバイス転送後に少し待機（初回再生時の問題を回避）
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          console.log('デバイス転送成功、アクティブデバイス状態を確認します')
+          // デバイス転送後にアクティブデバイスの状態を確認
+          let deviceActive = false
+          let attempts = 0
+          const maxAttempts = 5
+          
+          while (!deviceActive && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            attempts++
+            console.log(`アクティブデバイス確認試行 ${attempts}/${maxAttempts}`)
+            
+            const checkDevicesRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            const checkDevicesJson = await checkDevicesRes.json()
+            const checkDevices = (checkDevicesJson?.devices || []) as Array<{ id: string; is_active: boolean }>
+            
+            deviceActive = checkDevices.some(d => d.is_active)
+            console.log('アクティブデバイス状態:', deviceActive)
+          }
+          
+          if (!deviceActive) {
+            console.log('デバイス転送が完了しませんでした、リトライします')
+            if (retryCount < 2) {
+              setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
+              return
+            }
+          }
         } else {
           console.log('デバイス転送失敗:', transferRes.status)
+          if (retryCount < 2) {
+            setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
+            return
+          }
         }
       } else {
         console.log('アクティブデバイスが見つかりました')

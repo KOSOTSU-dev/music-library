@@ -305,7 +305,7 @@ export async function updateShelfItemMemo(formData: FormData) {
     .eq('id', itemId)
     .single()
 
-  if (!shelfItem || shelfItem.shelves.user_id !== user.id) {
+  if (!shelfItem || (shelfItem.shelves as any).user_id !== user.id) {
     return { error: "このアイテムを編集する権限がありません" }
   }
 
