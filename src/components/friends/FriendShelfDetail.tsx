@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, Calendar, Music, Heart, MessageCircle, Play, Pause, ExternalLink, ChevronDown, Share2, Trash2 } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { ArrowLeft, Calendar, Music, Heart, MessageCircle, Play, Pause, ExternalLink, ChevronDown, Share2, Trash2, StickyNote, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import CommentSection from "@/components/comments/CommentSection"
+import CommentModal from '@/components/comments/CommentModal'
 import { useToast } from "@/hooks/use-toast"
 import GlobalPlayer from "@/components/GlobalPlayer"
 import { toggleLike, getLikeCount, getCommentCount } from "@/app/app/comments-likes-actions"
@@ -61,68 +62,223 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [userLikes, setUserLikes] = useState<Record<string, boolean>>({})
+  const [commentModalOpen, setCommentModalOpen] = useState(false)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [likedUsers, setLikedUsers] = useState<Record<string, User[]>>({})
+  const [showLikedUsers, setShowLikedUsers] = useState<string | null>(null)
+  const [itemDetailOpen, setItemDetailOpen] = useState(false)
   const { toast } = useToast()
+  
+  // ナビゲーション機能
+  const currentIndex = selectedItem && items ? items.findIndex(item => item.id === selectedItem.id) : -1
+  const hasPrevious = currentIndex > 0
+  const hasNext = currentIndex < (items?.length || 0) - 1
+
+  const handlePrevious = () => {
+    if (hasPrevious && items) {
+      setSelectedItem(items[currentIndex - 1])
+    }
+  }
+
+  const handleNext = () => {
+    if (hasNext && items) {
+      setSelectedItem(items[currentIndex + 1])
+    }
+  }
+
+
+  const handleItemClick = (item: ShelfItem) => {
+    setSelectedItem(item)
+    setItemDetailOpen(true)
+  }
 
   const loadCounts = async (items: ShelfItem[]) => {
     try {
+      // currentUserIdが設定されていない場合は待機
+      if (!currentUserId) {
+        console.log('currentUserIdが未設定のため、loadCountsをスキップします')
+        return
+      }
+
       const counts = await Promise.all(
         items.map(async (item) => {
-          const [likeResult, commentResult] = await Promise.all([
-            getLikeCount(item.id),
-            getCommentCount(item.id)
+          // 直接Supabaseクライアントを使用してカウントを取得
+          const [likeCountResult, commentCountResult] = await Promise.all([
+            supabase
+              .from('likes')
+              .select('*', { count: 'exact', head: true })
+              .eq('shelf_item_id', item.id),
+            supabase
+              .from('comments')
+              .select('*', { count: 'exact', head: true })
+              .eq('shelf_item_id', item.id)
           ])
+          
+          const likeCount = likeCountResult.count || 0
+          const commentCount = commentCountResult.count || 0
+          
+          console.log('カウント取得結果:', { 
+            itemId: item.id, 
+            likeCount, 
+            commentCount,
+            likeError: likeCountResult.error,
+            commentError: commentCountResult.error
+          })
+          // 自分がいいねしているかを確認
+          let likedByMe = false
+          try {
+            console.log('いいね確認開始:', { itemId: item.id, currentUserId })
+            const { data } = await supabase
+              .from('likes')
+              .select('user_id')
+              .eq('shelf_item_id', item.id)
+              .eq('user_id', currentUserId)
+            console.log('いいね確認結果:', { data, itemId: item.id })
+            likedByMe = !!(data && data.length > 0)
+          } catch (error) {
+            console.error('いいね状態確認エラー:', error)
+          }
+
           return {
             itemId: item.id,
-            likeCount: likeResult.count || 0,
-            commentCount: commentResult.count || 0
+            likeCount: likeCount,
+            commentCount: commentCount,
+            likedByMe
           }
         })
       )
       
       const newLikeCounts: Record<string, number> = {}
       const newCommentCounts: Record<string, number> = {}
+      const newUserLikes: Record<string, boolean> = {}
       
-      counts.forEach(({ itemId, likeCount, commentCount }) => {
+      counts.forEach(({ itemId, likeCount, commentCount, likedByMe }) => {
         newLikeCounts[itemId] = likeCount
         newCommentCounts[itemId] = commentCount
+        newUserLikes[itemId] = !!likedByMe
+        console.log(`アイテム ${itemId}: いいね数=${likeCount}, コメント数=${commentCount}, いいね済み=${likedByMe}`)
       })
+      
+      console.log('最終的なコメント数設定:', newCommentCounts)
       
       setLikeCounts(newLikeCounts)
       setCommentCounts(newCommentCounts)
+      setUserLikes(newUserLikes)
     } catch (error) {
       console.error('Failed to load counts:', error)
     }
   }
 
-  const handleLike = async (itemId: string) => {
+  const loadLikedUsers = async (itemId: string) => {
     try {
-      const formData = new FormData()
-      formData.set('shelfItemId', itemId)
-      
-      const result = await toggleLike(formData)
-      if (result.error) {
-        toast({ title: 'エラー', description: result.error, variant: 'destructive' })
+      const { data, error } = await supabase
+        .from('likes')
+        .select(`
+          user:users(id, display_name, avatar_url)
+        `)
+        .eq('shelf_item_id', itemId)
+
+      if (error) {
+        console.error('いいねユーザー取得エラー:', error)
         return
       }
-      
-      // いいね数を更新
-      setLikeCounts(prev => ({
+
+      const users = data?.map(like => like.user).filter(Boolean) as User[]
+      setLikedUsers(prev => ({
         ...prev,
-        [itemId]: prev[itemId] + (result.liked ? 1 : -1)
+        [itemId]: users
       }))
-      
-      // ユーザーのいいね状態を更新
-      setUserLikes(prev => ({
-        ...prev,
-        [itemId]: result.liked
-      }))
-      
-      toast({ 
-        title: '成功', 
-        description: result.liked ? 'いいねしました' : 'いいねを取り消しました' 
-      })
     } catch (error) {
-      console.error('Failed to toggle like:', error)
+      console.error('いいねユーザー取得エラー:', error)
+    }
+  }
+
+  const handleLike = async (itemId: string) => {
+    try {
+      if (!currentUserId) {
+        toast({ title: 'エラー', description: 'ログインが必要です', variant: 'destructive' })
+        return
+      }
+
+      // 現在のいいね状態を確認
+      console.log('いいね確認開始:', { itemId, currentUserId })
+      
+      const { data: existingLikes, error: fetchError } = await supabase
+        .from('likes')
+        .select('id')
+        .eq('shelf_item_id', itemId)
+        .eq('user_id', currentUserId)
+
+      console.log('いいね確認結果:', { existingLikes, fetchError })
+
+      if (fetchError) {
+        console.error('いいね確認エラー詳細:', {
+          message: fetchError.message,
+          details: fetchError.details,
+          hint: fetchError.hint,
+          code: fetchError.code
+        })
+        toast({ title: 'エラー', description: `いいねの確認に失敗しました: ${fetchError.message}`, variant: 'destructive' })
+        return
+      }
+
+      const existingLike = existingLikes && existingLikes.length > 0
+      console.log('いいね状態:', existingLike)
+
+      if (existingLike) {
+        // いいねを削除
+        const { error: deleteError } = await supabase
+          .from('likes')
+          .delete()
+          .eq('shelf_item_id', itemId)
+          .eq('user_id', currentUserId)
+
+        if (deleteError) {
+          console.error('いいね削除エラー:', deleteError)
+          toast({ title: 'エラー', description: 'いいねの削除に失敗しました', variant: 'destructive' })
+          return
+        }
+
+        // いいね数を更新
+        setLikeCounts(prev => ({
+          ...prev,
+          [itemId]: Math.max(0, (prev[itemId] || 0) - 1)
+        }))
+        
+        // ユーザーのいいね状態を更新
+        setUserLikes(prev => ({
+          ...prev,
+          [itemId]: false
+        }))
+      } else {
+        // いいねを追加
+        const { error: insertError } = await supabase
+          .from('likes')
+          .insert({
+            shelf_item_id: itemId,
+            user_id: currentUserId
+          })
+
+        if (insertError) {
+          console.error('いいね追加エラー:', insertError)
+          toast({ title: 'エラー', description: 'いいねの追加に失敗しました', variant: 'destructive' })
+          return
+        }
+
+        // いいね数を更新
+        setLikeCounts(prev => ({
+          ...prev,
+          [itemId]: (prev[itemId] || 0) + 1
+        }))
+        
+        // ユーザーのいいね状態を更新
+        setUserLikes(prev => ({
+          ...prev,
+          [itemId]: true
+        }))
+      }
+    } catch (error) {
+      console.error('いいね処理エラー:', error)
       toast({ title: 'エラー', description: 'いいねの処理に失敗しました', variant: 'destructive' })
     }
   }
@@ -136,14 +292,22 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
     window.open(url, '_blank')
   }
 
-  const handlePlay = async (item: ShelfItem) => {
+  const handlePlay = async (item: ShelfItem, retryCount = 0) => {
     try {
+      console.log(`再生試行 ${retryCount + 1}回目:`, item.title)
+      
+      // セッションを再取得（初回再生時の認証問題を回避）
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken: string | undefined = (session as any)?.provider_token || (session as any)?.providerToken
+      
       if (!accessToken) {
-        toast({ title: 'Spotifyに再ログインしてください', description: '' })
+        console.log('アクセストークンが見つかりません')
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
         return
       }
+
+      console.log('アクセストークン取得成功')
 
       // デバイス確認
       const devicesRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
@@ -151,26 +315,63 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       })
       const devices = await devicesRes.json()
       
+      console.log('デバイス一覧:', devices.devices?.length || 0, '個のデバイス')
+      
       if (devices.devices && devices.devices.length > 0) {
         // アクティブデバイスがない場合は最初のデバイスに転送
         const activeDevice = devices.devices.find((d: any) => d.is_active)
         if (!activeDevice) {
-          await fetch('https://api.spotify.com/v1/me/player', {
+          console.log('アクティブデバイスが見つからないため、デバイス転送を実行')
+          const transferRes = await fetch('https://api.spotify.com/v1/me/player', {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ device_ids: [devices.devices[0].id] })
           })
+          
+          if (transferRes.ok) {
+            console.log('デバイス転送成功、少し待機します')
+            // デバイス転送後に少し待機（初回再生時の問題を回避）
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          } else {
+            console.log('デバイス転送失敗:', transferRes.status)
+          }
+        } else {
+          console.log('アクティブデバイスが見つかりました:', activeDevice.name)
         }
       }
 
       // 再生開始
+      console.log('再生開始:', item.spotify_id)
       const playRes = await fetch('https://api.spotify.com/v1/me/player/play', {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ uris: [`spotify:track:${item.spotify_id}`] })
       })
 
+      console.log('再生レスポンス:', playRes.status, playRes.statusText)
+
+      if (playRes.status === 401) {
+        console.log('認証エラー、再認証が必要')
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
+        return
+      }
+
+      if (playRes.status === 404) {
+        console.log('デバイスが見つからない、リトライします')
+        if (retryCount < 2) {
+          console.log(`${1000 * (retryCount + 1)}ms後にリトライします`)
+          setTimeout(() => handlePlay(item, retryCount + 1), 1000 * (retryCount + 1))
+          return
+        } else {
+          console.log('リトライ回数上限に達しました')
+          toast({ title: 'エラー', description: 'デバイスが見つかりません。Spotifyアプリを開いてください。', variant: 'destructive' })
+          return
+        }
+      }
+
       if (playRes.ok) {
+        console.log('再生成功')
         // 楽曲の詳細情報を取得してからイベントを送信
         try {
           const trackRes = await fetch(`https://api.spotify.com/v1/tracks/${item.spotify_id}`, {
@@ -219,14 +420,79 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             }
           }))
         }
+      } else {
+        console.log('再生失敗:', playRes.status, playRes.statusText)
+        const errorText = await playRes.text()
+        console.log('エラー詳細:', errorText)
+        
+        // 初回再生時の一般的な問題（デバイス未準備）の場合はリトライ
+        if (playRes.status === 400 && retryCount < 2) {
+          console.log('初回再生エラー、リトライします')
+          setTimeout(() => handlePlay(item, retryCount + 1), 1000 * (retryCount + 1))
+          return
+        }
+        
+        toast({ title: '再生に失敗しました', description: 'Spotifyアプリを開いてからもう一度お試しください', variant: 'destructive' })
       }
     } catch (e) {
       console.error('再生エラー:', e)
-      // 失敗しても致命的ではない
+      if (retryCount < 2) {
+        console.log('例外エラー、リトライします')
+        setTimeout(() => handlePlay(item, retryCount + 1), 1000 * (retryCount + 1))
+        return
+      }
+      toast({ title: '再生エラー', description: '予期しないエラーが発生しました', variant: 'destructive' })
     }
   }
 
+  // currentUserIdが設定された後にloadCountsを呼び出す
   useEffect(() => {
+    if (currentUserId && items.length > 0) {
+      console.log('currentUserId設定後、loadCountsを呼び出します（useEffect）')
+      loadCounts(items)
+    }
+  }, [currentUserId, items])
+
+  useEffect(() => {
+    // コメント・いいね数の更新イベントをリッスン
+    const handleCommentAdded = (e?: any) => {
+      // 楽観的に対象アイテムのコメント数だけ+1（即時反映）
+      try {
+        const targetId = e?.detail?.shelfItemId as string | undefined
+        if (targetId) {
+          setCommentCounts(prev => ({ ...prev, [targetId]: (prev[targetId] || 0) + 1 }))
+        }
+      } catch {}
+      // 直後に正確な値で再取得
+      if (currentUserId && items.length > 0) {
+        loadCounts(items)
+      }
+    }
+    
+    const handleLikeToggled = () => {
+      if (currentUserId && items.length > 0) {
+        loadCounts(items)
+      }
+    }
+    
+    const handleCommentDeleted = (e?: any) => {
+      // 楽観的に対象アイテムのコメント数だけ-1（即時反映）
+      try {
+        const targetId = e?.detail?.shelfItemId as string | undefined
+        if (targetId) {
+          setCommentCounts(prev => ({ ...prev, [targetId]: Math.max(0, (prev[targetId] || 0) - 1) }))
+        }
+      } catch {}
+      // 直後に正確な値で再取得
+      if (currentUserId && items.length > 0) {
+        loadCounts(items)
+      }
+    }
+
+    window.addEventListener('comment:added', handleCommentAdded as any)
+    window.addEventListener('comment:deleted', handleCommentDeleted as any)
+    window.addEventListener('like:toggled', handleLikeToggled)
+
     const loadShelfData = async () => {
       try {
         // shelfIdが"not-found"または無効なUUIDの場合はエラーページを表示
@@ -240,6 +506,11 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         console.log('🔐 フレンドギャラリー - 認証状態:', { user: user?.id, authError })
         setCurrentUserId(user?.id || null)
+        
+        // currentUserIdを設定してからloadCountsを呼び出し
+        if (user?.id) {
+          console.log('currentUserId設定後、loadCountsを呼び出します')
+        }
 
         // フレンドの全棚を取得
         console.log('📚 フレンドギャラリー - 全棚取得:', { userId })
@@ -333,6 +604,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
 
         setShelf(shelfData)
 
+
         // 棚のアイテムを取得
         const { data: itemsData, error: itemsError } = await supabase
           .from('shelf_items')
@@ -354,8 +626,13 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         })))
         setItems(baseItems)
         
-        // いいね数とコメント数を取得
-        await loadCounts(baseItems)
+        // いいね数とコメント数を取得（currentUserIdが設定された後）
+        if (user?.id) {
+          console.log('currentUserId設定後、loadCountsを呼び出します')
+          await loadCounts(baseItems)
+        } else {
+          console.log('currentUserIdが未設定のため、loadCountsをスキップします')
+        }
 
         // 画像URLをSpotifyから取得して常に最新に上書き（DBは変更せず表示のみ上書き）
         try {
@@ -426,6 +703,12 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
     }
 
     loadShelfData()
+
+    return () => {
+      window.removeEventListener('comment:added', handleCommentAdded as any)
+      window.removeEventListener('comment:deleted', handleCommentDeleted as any)
+      window.removeEventListener('like:toggled', handleLikeToggled)
+    }
   }, [userId, shelfId])
 
   const formatDate = (dateString: string) => {
@@ -446,7 +729,8 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken: string | undefined = (session as any)?.provider_token || (session as any)?.providerToken
       if (!accessToken) {
-        toast({ title: 'エラー', description: 'Spotifyに再ログインしてください', variant: 'destructive' })
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
         return
       }
 
@@ -454,6 +738,12 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${accessToken}` }
       })
+
+      if (pauseRes.status === 401) {
+        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
+        toast({ title: 'Spotifyに再ログインしてください' })
+        return
+      }
 
       if (!pauseRes.ok) {
         toast({ title: 'エラー', description: '一時停止に失敗しました', variant: 'destructive' })
@@ -500,7 +790,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       <div className="w-full px-6 pb-24 space-y-1">
         {/* ヘッダー */}
         <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm" className="text-white bg-[#1a1a1a] border-[#1a1a1a] hover:bg-[#333333]">
+        <Button asChild variant="outline" size="sm" className="text-white bg-[#1a1a1a] border-[#1a1a1a] hover:bg-[#333333] hover:text-white">
           <Link href="/app/friends">
             <ArrowLeft className="h-4 w-4 mr-2" />
             戻る
@@ -539,6 +829,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             </div>
           )}
         </div>
+        
       </div>
 
       {/* アイテム一覧 */}
@@ -575,6 +866,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                 >
                   <Card 
                     className="group transition-colors duration-200 bg-[#333333] hover:bg-[#4d4d4d] border-[#333333] py-1 gap-1"
+                    onClick={() => handleItemClick(item)}
                   >
                     <CardContent className="px-2 py-0">
                       <div className="aspect-square rounded-lg mb-2 mt-1 relative overflow-hidden bg-[#333333] group">
@@ -628,20 +920,40 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                           <div className="flex items-center gap-2">
                             <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{item.album}</p>
                             <div className="flex items-center gap-2 ml-auto">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (currentUserId === shelf?.user_id) {
+                                  // 自分のギャラリーの場合、いいねした人の一覧を表示
+                                  if (!likedUsers[item.id]) {
+                                    loadLikedUsers(item.id)
+                                  }
+                                  setShowLikedUsers(showLikedUsers === item.id ? null : item.id)
+                                } else {
+                                  // フレンドギャラリーの場合、いいねを実行
                                   handleLike(item.id)
-                                }}
-                                className="flex items-center gap-1 text-xs text-white hover:text-red-500 transition-colors"
-                              >
-                                <Heart className={`h-4 w-4 ${userLikes[item.id] ? 'fill-red-500 text-red-500' : ''}`} />
-                                <span>{likeCounts[item.id] || 0}</span>
-                              </button>
-                              <div className="flex items-center gap-1 text-xs text-white hover:-translate-y-1 transition-transform duration-200 ease-out">
-                                <MessageCircle className="h-4 w-4" />
-                                <span>{commentCounts[item.id] || 0}</span>
-                              </div>
+                                }
+                              }}
+                              className="flex items-center gap-1 text-xs text-white transition-colors"
+                            >
+                              <Heart className={`h-4 w-4 ${userLikes[item.id] ? 'fill-red-500 text-red-500' : 'text-white hover:text-pink-400'}`} />
+                              <span>{likeCounts[item.id] || 0}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedItemId(item.id)
+                                setCommentModalOpen(true)
+                              }}
+                              className="flex items-center gap-1 text-xs text-white hover:-translate-y-1 transition-transform duration-200 ease-out"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              <span>{(() => {
+                                const count = commentCounts[item.id] || 0;
+                                console.log(`表示するコメント数: ${item.id} = ${count}`);
+                                return count;
+                              })()}</span>
+                            </button>
                             </div>
                           </div>
                         )}
@@ -658,7 +970,218 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
 
     {/* 画像モーダルは廃止 */}
 
-    <GlobalPlayer />
-  </div>
-)
+      <GlobalPlayer />
+      
+      {/* コメントモーダル */}
+      {selectedItemId && (
+        <CommentModal
+          open={commentModalOpen}
+          onOpenChange={setCommentModalOpen}
+          shelfItemId={selectedItemId}
+          currentUserId={currentUserId}
+        />
+      )}
+
+      {/* いいねした人の一覧 */}
+      {showLikedUsers && likedUsers[showLikedUsers] && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[#1a1a1a] border border-[#333333] rounded-lg p-4 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-medium">いいねした人</h3>
+              <button
+                onClick={() => setShowLikedUsers(null)}
+                className="text-muted-foreground hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {likedUsers[showLikedUsers].map((user) => (
+                <div key={user.id} className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.avatar_url || undefined} />
+                    <AvatarFallback>{user.display_name[0]}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-white">{user.display_name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* アイテム詳細モーダル */}
+      {selectedItem && (
+        <Dialog open={itemDetailOpen} onOpenChange={setItemDetailOpen}>
+          <DialogContent className="sm:max-w-[520px] pb-3 bg-[#1a1a1a] text-white [&>button]:text-[#666666] [&>button:hover]:text-red-500 [&>button]:bg-transparent [&>button:hover]:bg-transparent">
+            <div className="relative">
+              <DialogHeader>
+                <DialogTitle className="flex-1 min-w-0 text-white pr-8 mb-2">{selectedItem.title}</DialogTitle>
+              </DialogHeader>
+              <div className="flex gap-2 -mt-1">
+                {/* アルバムアート */}
+                <div className="flex-shrink-0">
+                  <div className="w-32 h-32 bg-[#333333] rounded-lg overflow-hidden">
+                    {selectedItem.image_url ? (
+                      <img 
+                        src={selectedItem.image_url} 
+                        alt={selectedItem.title}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Music className="h-8 w-8 text-[#666666]" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* メタデータ */}
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center justify-between min-w-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm text-[#666666]">アーティスト</label>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => {
+                              if (currentUserId === shelf?.user_id) {
+                                // 自分のギャラリーの場合はいいねしたユーザーを表示
+                                setShowLikedUsers(selectedItem.id)
+                              } else {
+                                // フレンドのギャラリーの場合はいいねをトグル
+                                handleLike(selectedItem.id)
+                              }
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#666666] hover:text-white transition-colors"
+                          >
+                            <Heart className={`h-4 w-4 ${userLikes[selectedItem.id] ? 'fill-red-500 text-red-500' : ''}`} />
+                            {likeCounts[selectedItem.id] || 0}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedItemId(selectedItem.id)
+                              setCommentModalOpen(true)
+                            }}
+                            className="flex items-center gap-2 text-sm text-[#666666] hover:text-white transition-colors"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            {commentCounts[selectedItem.id] || 0}
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-base text-white truncate">{selectedItem.artist}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm text-[#666666]">アルバム</label>
+                    <p className="text-base text-white">{selectedItem.album || selectedItem.title}</p>
+                    {/* メモ表示 */}
+                    {selectedItem.memo && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <StickyNote className="h-5 w-5 text-gray-500" />
+                        <div className="text-base text-white underline">{selectedItem.memo}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* 左右の矢印ナビゲーション */}
+            <button
+              type="button"
+              onClick={handlePrevious}
+              disabled={!hasPrevious}
+              aria-label="前の曲"
+              className={`absolute top-1/2 -translate-y-1/2 -left-1 text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors ${hasPrevious ? 'text-gray-500 hover:text-[#999999]' : 'text-gray-300 cursor-not-allowed'}`}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!hasNext}
+              aria-label="次の曲"
+              className={`absolute top-1/2 -translate-y-1/2 -right-1 text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors ${hasNext ? 'text-gray-500 hover:text-[#999999]' : 'text-gray-300 cursor-not-allowed'}`}
+            >
+              ›
+            </button>
+            
+            <hr className="border-[#333333] -mt-2" />
+            
+            <DialogFooter className="flex justify-start items-center -mt-4">
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  className="group flex items-center overflow-hidden w-10 h-10 hover:w-36 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                  onClick={() => window.open(`https://open.spotify.com/${selectedItem.spotify_type}/${selectedItem.spotify_id}`, '_blank')}
+                  aria-label="Spotifyで開く"
+                >
+                  <span className="flex items-center justify-center text-foreground ml-0.75">
+                    <ExternalLink className="h-5 w-5" />
+                  </span>
+                  <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    Spotifyで開く
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="group flex items-center overflow-hidden w-10 h-10 hover:w-40 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                  onClick={() => {
+                    const url = `https://open.spotify.com/${selectedItem.spotify_type}/${selectedItem.spotify_id}`
+                    navigator.clipboard.writeText(url)
+                    toast({
+                      title: "リンクをコピーしました",
+                      description: "Spotifyのリンクがクリップボードにコピーされました",
+                    })
+                  }}
+                  aria-label="リンクをコピー"
+                >
+                  <span className="flex items-center justify-center text-foreground ml-0.75">
+                    <Share2 className="h-5 w-5" />
+                  </span>
+                  <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    リンクをコピー
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="group flex items-center overflow-hidden w-10 h-10 hover:w-20 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                  onClick={() => {
+                    // 再生機能は実装しない
+                  }}
+                  disabled
+                  aria-label="再生"
+                >
+                  <span className="flex items-center justify-center text-foreground ml-0.75">
+                    <Play className="h-5 w-5" />
+                  </span>
+                  <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    再生
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="group flex items-center overflow-hidden w-10 h-10 hover:w-28 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                  onClick={() => {
+                    // 一時停止機能は実装しない
+                  }}
+                  disabled
+                  aria-label="一時停止"
+                >
+                  <span className="flex items-center justify-center text-foreground ml-0.75">
+                    <Pause className="h-5 w-5" />
+                  </span>
+                  <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    一時停止
+                  </span>
+                </button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  )
 }

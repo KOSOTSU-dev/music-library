@@ -127,12 +127,7 @@ export async function getLikes(shelfItemId: string) {
     .select(`
       id,
       created_at,
-      users!inner(
-        id,
-        username,
-        display_name,
-        avatar_url
-      )
+      user_id
     `)
     .eq('shelf_item_id', shelfItemId)
     .order('created_at', { ascending: false })
@@ -141,7 +136,23 @@ export async function getLikes(shelfItemId: string) {
     return { error: error.message }
   }
 
-  return { likes }
+  // ユーザー情報を個別に取得
+  const likesWithUsers = await Promise.all(
+    (likes || []).map(async (like) => {
+      const { data: user } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', like.user_id)
+        .single()
+      
+      return {
+        ...like,
+        users: user
+      }
+    })
+  )
+
+  return { likes: likesWithUsers }
 }
 
 // Toggle like (add or remove)

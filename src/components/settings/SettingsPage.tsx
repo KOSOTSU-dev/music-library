@@ -62,7 +62,7 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto p-6 pb-24 space-y-6">
       {/* ヘッダー */}
       <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]">
+        <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-white">
           <Link href="/app">
             <ArrowLeft className="h-4 w-4 mr-2" />
             ホームに戻る

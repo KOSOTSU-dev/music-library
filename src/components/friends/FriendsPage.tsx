@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Search, UserPlus, UserMinus, UserCheck, UserX, Shield, Eye, ArrowLeft, User, Camera, LogOut, Wand2 } from "lucide-react"
 import { sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, searchUsers, updateProfile, getPendingFriendRequestsCount } from "@/app/app/friends-actions"
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 import { signOut } from "@/lib/auth"
 import { setupVirtualFriendRequests, clearVirtualFriendRequests } from "@/app/app/virtual-friend-setup"
 import { updateVirtualFriendImages } from "@/app/app/update-virtual-friend-images"
@@ -52,6 +53,7 @@ export default function FriendsPage() {
   const [isSearching, setIsSearching] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const { toast } = useToast()
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, friendId: '', friendName: '' })
 
   // プロフィール情報を読み込み
   useEffect(() => {
@@ -283,6 +285,44 @@ export default function FriendsPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleDeleteClick = (friendId: string, friendName: string) => {
+    setDeleteDialog({ open: true, friendId, friendName })
+  }
+
+  const handleDeleteConfirm = async () => {
+    await handleRemoveFriend(deleteDialog.friendId)
+    setDeleteDialog({ open: false, friendId: '', friendName: '' })
+  }
+
+  const handleGalleryClick = async (userId: string, username: string) => {
+    console.log('ギャラリーボタンクリック:', { userId, username })
+    
+    // 仮想フレンドかどうかをチェック
+    const isVirtualFriend = username.startsWith('virtual_')
+    console.log('仮想フレンド判定:', { isVirtualFriend, username })
+    
+    if (isVirtualFriend) {
+      // 仮想フレンドの場合はSpotify認証をチェック
+      const { data: { session } } = await supabase.auth.getSession()
+      const spotifyToken = session?.provider_token
+      console.log('Spotify認証状態:', { hasToken: !!spotifyToken, session: !!session })
+      
+      if (!spotifyToken) {
+        console.log('Spotify認証が切れています - トーストを表示')
+        toast({
+          title: 'Spotifyに再ログインしてください',
+          description: '仮想フレンドのギャラリーを閲覧するにはSpotify認証が必要です',
+          variant: 'destructive'
+        })
+        return
+      }
+    }
+    
+    console.log('ギャラリーに遷移します')
+    // 認証OKまたは仮想フレンド以外の場合はギャラリーに遷移
+    window.location.href = `/app/friends/${userId}/shelf/first`
   }
 
   const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -532,7 +572,7 @@ export default function FriendsPage() {
       <div className="max-w-4xl mx-auto p-6 pb-24 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]">
+          <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-white">
             <Link href="/app">
               <ArrowLeft className="h-4 w-4 mr-2" />
               ホームに戻る
@@ -604,7 +644,7 @@ export default function FriendsPage() {
                           size="sm"
                           onClick={() => handleSendFriendRequest(user.id)}
                           disabled={isLoading}
-                          className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
+                          className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-white"
                         >
                           <UserPlus className="h-4 w-4 mr-2" />
                           申請
@@ -646,16 +686,19 @@ export default function FriendsPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button asChild variant="outline" size="sm" className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-[#e6e6e6]">
-                            <Link href={`/app/friends/${friendUser.id}/shelf/first`}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              ギャラリー
-                            </Link>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleGalleryClick(friendUser.id, friendUser.username)}
+                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-[#e6e6e6]"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            ギャラリー
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleRemoveFriend(friendUser.id)}
+                            onClick={() => handleDeleteClick(friendUser.id, friendUser.display_name || friendUser.username)}
                             disabled={isLoading}
                             className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-[#e6e6e6]"
                           >
@@ -691,7 +734,7 @@ export default function FriendsPage() {
                       onClick={handleSetupVirtualFriends} 
                       disabled={isLoading}
                       variant="outline"
-                      className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
+                      className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-white"
                     >
                       <Wand2 className="h-4 w-4 mr-2" />
                       仮想フレンド申請を作成
@@ -721,7 +764,7 @@ export default function FriendsPage() {
                             size="sm"
                             onClick={() => handleAcceptRequest(requester.id)}
                             disabled={isLoading}
-                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
+                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-white"
                           >
                             <UserCheck className="h-4 w-4 mr-2" />
                             承認
@@ -731,7 +774,7 @@ export default function FriendsPage() {
                             size="sm"
                             onClick={() => handleRejectRequest(requester.id)}
                             disabled={isLoading}
-                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d]"
+                            className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-white"
                           >
                             <UserX className="h-4 w-4 mr-2" />
                             拒否
@@ -842,6 +885,15 @@ export default function FriendsPage() {
       </Tabs>
       </div>
       <GlobalPlayer currentShelfItems={[]} />
+      
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}
+        onConfirm={handleDeleteConfirm}
+        title="フレンドを削除"
+        description="このフレンドを削除しますか？この操作は取り消せません。"
+        itemName={deleteDialog.friendName}
+      />
     </div>
   )
 }

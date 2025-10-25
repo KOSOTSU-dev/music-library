@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
 import { Share2, GripVertical, MessageCircle, Trash2, ExternalLink, Copy, StickyNote, Heart, Link as LinkIcon, Users, Settings, Music, PanelLeftClose, PanelLeftOpen, Plus, Pen, ChevronDown } from "lucide-react"
@@ -18,6 +18,7 @@ import { SpotifyReauthAction } from "@/components/ui/toast"
 import { showSpotifyReauthToast } from "@/hooks/use-toast"
 import { useToast } from "@/hooks/use-toast"
 import { useGlobalPlayer } from "@/hooks/useGlobalPlayer"
+import CommentModal from '@/components/comments/CommentModal'
 import { signOut } from "@/lib/auth"
 import { createShelf, reorderShelves, updateShelfItemMemo } from "./actions"
 import { getLikeCount, getCommentCount, getLikes, getComments, toggleLike, addComment, deleteComment } from "./comments-likes-actions"
@@ -101,6 +102,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
             <DialogContent className="sm:max-w-[360px]">
               <DialogHeader>
                 <DialogTitle>棚を作成</DialogTitle>
+                <DialogDescription>新しい棚を作成して楽曲を整理します</DialogDescription>
               </DialogHeader>
               <form action={handleSubmit} className="flex gap-2">
                 <input name="name" placeholder="新しいギャラリー名" className="flex-1 rounded px-2 py-1 text-base bg-black text-white outline-none" />
@@ -155,6 +157,8 @@ export default function AppHome() {
   const [shelves, setShelves] = useState<Shelf[]>([])
   const [selectedShelfId, setSelectedShelfId] = useState<string | null>(null)
   const [compactShelves, setCompactShelves] = useState<boolean>(false)
+  const [commentModalOpen, setCommentModalOpen] = useState(false)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const router = useRouter()
   const { currentTrack, setCurrentShelfItems: setGlobalShelfItems } = useGlobalPlayer()
 
@@ -441,7 +445,7 @@ export default function AppHome() {
             </h2>
             <SearchPanel />
             </div>
-            <ShelfView onShelfItemsChange={setCurrentShelfItems} currentTrack={currentTrack} toast={toast} />
+            <ShelfView onShelfItemsChange={setCurrentShelfItems} currentTrack={currentTrack} toast={toast} user={user} />
           </section>
         </div>
       </main>
@@ -946,7 +950,7 @@ function SortableShelfItem({
         // 横方向の移動を制限
         transform: isDragging ? `translateY(${transform?.y || 0}px)` : CSS.Transform.toString(transform)
       }}
-      className={`flex items-center justify-between ${compact ? 'px-1 py-1' : 'px-2 py-1'} text-base rounded cursor-grab active:cursor-grabbing transition-colors duration-200 ease-in-out ${isSelected && !compact ? 'bg-[#4d4d4d] hover:!bg-[#333333]' : ''} ${!isSelected && !compact ? 'hover:bg-[#333333]' : ''}`}
+      className={`flex items-center justify-between ${compact ? 'px-1 py-1' : 'px-2 py-1'} text-base rounded cursor-grab active:cursor-grabbing transition-colors duration-200 ease-in-out ${isSelected && !compact ? 'bg-[#4d4d4d] hover:!bg-[#333333] hover:!text-white' : ''} ${!isSelected && !compact ? 'hover:bg-[#333333] hover:text-white' : ''}`}
       data-shelf-selected={isSelected}
       data-shelf-id={shelf.id}
       {...dragAttributes}
@@ -1104,6 +1108,7 @@ function SortableShelfItem({
           <DialogContent className="sm:max-w-[420px] bg-[#1a1a1a] border-none [&>button]:bg-transparent [&>button]:text-gray-400 [&>button]:hover:text-white [&>button]:hover:bg-transparent [&>button]:focus:outline-none [&>button]:focus:ring-0 [&>button]:border-none [&>button]:shadow-none">
             <DialogHeader>
               <DialogTitle className="text-white">棚を編集</DialogTitle>
+              <DialogDescription>棚の名前とアイコンを変更します</DialogDescription>
             </DialogHeader>
             <div className="flex items-center gap-3">
               <div className="relative group">
@@ -1390,7 +1395,7 @@ function SearchPanel() {
   )
 }
 
-function ShelfView({ onShelfItemsChange, currentTrack, toast }: { onShelfItemsChange: (items: any[]) => void, currentTrack?: any, toast: any }) {
+function ShelfView({ onShelfItemsChange, currentTrack, toast, user }: { onShelfItemsChange: (items: any[]) => void, currentTrack?: any, toast: any, user: any }) {
   const [selectedShelfId, setSelectedShelfId] = useState<string>("")
   const [items, setItems] = useState<any[]>([])
   const [open, setOpen] = useState(false)
@@ -1564,6 +1569,7 @@ function ShelfView({ onShelfItemsChange, currentTrack, toast }: { onShelfItemsCh
         }}
         shelfItems={items}
         onItemChange={(item) => setActiveItem(item)}
+        user={user}
       />
       
       {items.length === 0 && (
@@ -1791,7 +1797,7 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
   )
 }
 
-function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onItemChange }: { open: boolean, onOpenChange: (v:boolean)=>void, item: any | null, onDeleted: () => void, shelfItems: any[], onItemChange: (item: any) => void }) {
+function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onItemChange, user }: { open: boolean, onOpenChange: (v:boolean)=>void, item: any | null, onDeleted: () => void, shelfItems: any[], onItemChange: (item: any) => void, user: any }) {
   // Hooks must be called unconditionally and in the same order
   const [isLoading, setIsLoading] = useState(false)
   const [memo, setMemo] = useState("")
@@ -1799,12 +1805,15 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   const [isMemoLoading, setIsMemoLoading] = useState(false)
   const [showLikesModal, setShowLikesModal] = useState(false)
   const [showCommentsModal, setShowCommentsModal] = useState(false)
+  const [commentModalOpen, setCommentModalOpen] = useState(false)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [likeCount, setLikeCount] = useState(0)
   const [commentCount, setCommentCount] = useState(0)
   const [likes, setLikes] = useState<any[]>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [comments, setComments] = useState<any[]>([])
   const [isLoadingCounts, setIsLoadingCounts] = useState(false)
+  const { toast } = useToast()
 
   // Get current item index and navigation functions
   const currentIndex = item && shelfItems ? shelfItems.findIndex(shelfItem => shelfItem.id === item.id) : -1
@@ -1869,26 +1878,25 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
     setShowLikesModal(true)
     try {
       const result = await getLikes(item.id)
-      if (result.likes) {
+      console.log('いいね取得結果:', result)
+      if (result.likes && Array.isArray(result.likes)) {
         setLikes(result.likes)
+        console.log('いいね数:', result.likes.length)
+      } else {
+        console.log('いいねデータがありません')
+        setLikes([])
       }
     } catch (error) {
       console.error('Failed to load likes:', error)
+      setLikes([])
     }
   }
 
   const handleShowComments = async () => {
     if (!item) return
-    
-    setShowCommentsModal(true)
-    try {
-      const result = await getComments(item.id)
-      if (result.comments) {
-        setComments(result.comments)
-      }
-    } catch (error) {
-      console.error('Failed to load comments:', error)
-    }
+    console.log('コメント表示開始:', { itemId: item.id, userId: user?.id })
+    setSelectedItemId(item.id)
+    setCommentModalOpen(true)
   }
 
   if (!item) return null
@@ -1903,31 +1911,53 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
       onOpenChange(false)
     }
   }
-  async function handlePlay() {
+  async function handlePlay(retryCount = 0) {
     setIsLoading(true)
     try {
+      console.log(`ホーム再生試行 ${retryCount + 1}回目:`, item.title)
+      
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.provider_token
       if (!token) {
+        console.log('アクセストークンが見つかりません')
         window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
         toast({ title: 'Spotifyに再ログインしてください' })
         return
       }
+      
+      console.log('アクセストークン取得成功')
+      
       // アクティブデバイスが無いと404が返るため、デバイスを確認して必要なら転送を試みる
       const devRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
         headers: { Authorization: `Bearer ${token}` }
       })
       const devJson = await devRes.json()
       const devices = (devJson?.devices || []) as Array<{ id: string; is_active: boolean }>
+      
+      console.log('デバイス一覧:', devices.length, '個のデバイス')
+      
       if (!devices.length) {
+        console.log('デバイスが見つかりません')
         toast({ title: '再生可能なSpotifyデバイスが見つかりません', description: 'Spotifyアプリを起動してください', variant: 'destructive' })
+        return
       } else if (!devices.some(d => d.is_active)) {
+        console.log('アクティブデバイスが見つからないため、デバイス転送を実行')
         const target = devices[0]
-        await fetch('https://api.spotify.com/v1/me/player', {
+        const transferRes = await fetch('https://api.spotify.com/v1/me/player', {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ device_ids: [target.id], play: false })
         })
+        
+        if (transferRes.ok) {
+          console.log('デバイス転送成功、少し待機します')
+          // デバイス転送後に少し待機（初回再生時の問題を回避）
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        } else {
+          console.log('デバイス転送失敗:', transferRes.status)
+        }
+      } else {
+        console.log('アクティブデバイスが見つかりました')
       }
       
       // トラックの場合はuris、アルバム/プレイリストの場合はcontext_uriを使用
@@ -1936,24 +1966,59 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
         ? { uris: [`spotify:track:${item.spotify_id}`] }
         : { context_uri: `spotify:${item.spotify_type}:${item.spotify_id}` }
       
+      console.log('再生開始:', item.spotify_id, 'isTrack:', isTrack)
       const response = await fetch(`https://api.spotify.com/v1/me/player/play`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
+      
+      console.log('再生レスポンス:', response.status, response.statusText)
+      
       if (response.status === 401) {
+        console.log('認証エラー、再認証が必要')
         window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
         toast({ title: 'Spotifyに再ログインしてください' })
         return
       }
+      
+      if (response.status === 404) {
+        console.log('デバイスが見つからない、リトライします')
+        if (retryCount < 2) {
+          console.log(`${1000 * (retryCount + 1)}ms後にリトライします`)
+          setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
+          return
+        } else {
+          console.log('リトライ回数上限に達しました')
+          toast({ title: 'エラー', description: 'デバイスが見つかりません。Spotifyアプリを開いてください。', variant: 'destructive' })
+          return
+        }
+      }
+      
       if (!response.ok) {
         const error = await response.text()
-        console.error('Play error:', error)
-        toast({ title: '再生に失敗しました', variant: 'destructive' })
+        console.log('再生失敗:', response.status, response.statusText)
+        console.log('エラー詳細:', error)
+        
+        // 初回再生時の一般的な問題（デバイス未準備）の場合はリトライ
+        if (response.status === 400 && retryCount < 2) {
+          console.log('初回再生エラー、リトライします')
+          setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
+          return
+        }
+        
+        toast({ title: '再生に失敗しました', description: 'Spotifyアプリを開いてからもう一度お試しください', variant: 'destructive' })
+      } else {
+        console.log('再生成功')
       }
     } catch (error) {
       console.error('Play error:', error)
-      toast({ title: '再生に失敗しました', variant: 'destructive' })
+      if (retryCount < 2) {
+        console.log('例外エラー、リトライします')
+        setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
+        return
+      }
+      toast({ title: '再生エラー', description: '予期しないエラーが発生しました', variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
@@ -1993,9 +2058,9 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   }
 
   async function handleMemoSave() {
-    if (memo.length > 20) {
+    if (memo.length > 15) {
       // メモの文字数制限エラーはtoastで表示
-      console.error("メモは20文字以内で入力してください")
+      console.error("メモは15文字以内で入力してください")
       return
     }
 
@@ -2023,6 +2088,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
           <div className="relative">
             <DialogHeader>
               <DialogTitle className="flex-1 min-w-0 text-white">{item.title}</DialogTitle>
+              <DialogDescription>楽曲の詳細情報と操作</DialogDescription>
             </DialogHeader>
             <div className="flex gap-4">
               {item.image_url ? (
@@ -2031,27 +2097,27 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                 <div className="w-40 h-40 rounded bg-muted" />
               )}
               <div className="flex-1 min-w-0 space-y-1 text-white">
-                <div className="flex items-start justify-between">
-                  <div>
+                <div className="flex items-start justify-between min-w-0">
+                  <div className="flex-1 min-w-0">
                     <div className="text-base text-muted-foreground">アーティスト</div>
                     <div className="text-base truncate">{item.artist}</div>
                   </div>
-                  <div className="flex items-center gap-3 -mt-1">
+                  <div className="flex items-center gap-3 -mt-1 flex-shrink-0 ml-2">
                     <button
                       onClick={handleShowLikes}
-                      className="flex items-center gap-1 text-base text-muted-foreground transition-colors group"
+                      className="flex items-center gap-1 text-base transition-colors group"
                       disabled={isLoadingCounts}
                     >
                       <Heart className="h-5 w-5 text-white group-hover:text-[#ff80d5] transition-colors" />
-                      <span>{likeCount}</span>
+                      <span className={likeCount > 0 ? "text-white" : "text-muted-foreground"}>{likeCount}</span>
                     </button>
                     <button
                       onClick={handleShowComments}
-                      className="flex items-center gap-1 text-base text-muted-foreground transition-all group"
+                      className="flex items-center gap-1 text-base transition-all group"
                       disabled={isLoadingCounts}
                     >
                       <MessageCircle className="h-5 w-5 text-white transform group-hover:-translate-y-0.5 transition-transform" />
-                      <span>{commentCount}</span>
+                      <span className={commentCount > 0 ? "text-white" : "text-muted-foreground"}>{commentCount}</span>
                     </button>
                   </div>
                 </div>
@@ -2069,7 +2135,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                 {item.memo && (
                   <div className="flex items-center gap-2 mt-2">
                     <StickyNote className="h-5 w-5 text-gray-500" />
-                    <div className="text-base text-black underline">{item.memo}</div>
+                    <div className="text-base text-white underline">{item.memo}</div>
                   </div>
                 )}
               </div>
@@ -2095,39 +2161,39 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
               ›
             </button>
           </div>
-          {!isMemoOpen && <hr className="border-gray-200 -mb-2" />}
+          {!isMemoOpen && <hr className="border-[#333333] -mb-2" />}
           
           {/* メモ入力欄 */}
           {isMemoOpen && (
-            <div className="mb-2 p-2 bg-background border border-border rounded-lg">
+            <div className="mb-2 p-2 bg-[#1a1a1a] border border-[#333333] rounded-lg">
               <div className="mb-2">
-                <label className="text-sm font-medium text-foreground">メモ</label>
+                <label className="text-sm font-medium text-white">メモ</label>
               </div>
               <input
                 type="text"
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
-                placeholder="メモを入力してください（20文字以内）"
-                maxLength={20}
-                className="w-full p-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors"
+                placeholder="メモを入力してください（15文字以内）"
+                maxLength={15}
+                className="w-full p-2 border border-[#333333] bg-[#1a1a1a] text-white rounded-md focus:outline-none focus:ring-2 focus:ring-[#666666] focus:border-transparent transition-colors placeholder:text-[#666666]"
               />
               <div className="flex items-center justify-between mt-2">
-                <div className="text-xs text-muted-foreground">
-                  {memo.length}/20文字
+                <div className="text-xs text-[#666666]">
+                  {memo.length}/15文字
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={handleMemoSave}
                     disabled={isMemoLoading}
-                    className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 text-sm bg-[#666666] text-white rounded-md hover:bg-[#4d4d4d] disabled:opacity-50 transition-colors"
                   >
                     {isMemoLoading ? '保存中...' : '保存'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsMemoOpen(false)}
-                    className="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                    className="px-3 py-1.5 text-sm bg-[#333333] text-white rounded-md hover:bg-[#4d4d4d] transition-colors"
                   >
                     キャンセル
                   </button>
@@ -2228,11 +2294,55 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
 
     {/* いいね一覧モーダル */}
     <Dialog open={showLikesModal} onOpenChange={setShowLikesModal}>
-      <DialogContent className="sm:max-w-[400px]">
+      <DialogContent 
+        className="sm:max-w-[400px] bg-[#1a1a1a] border-[#333333] text-white [&>button]:text-[#666666] [&>button:hover]:text-red-500 [&>button]:bg-transparent [&>button:hover]:bg-transparent [&>button]:border-none [&>button:hover]:border-none [&>button]:outline-none [&>button:focus]:outline-none [&>button:focus-visible]:outline-none [&>button]:ring-0 [&>button:focus]:ring-0 [&>button:focus-visible]:ring-0 [&>button]:shadow-none [&>button:focus]:shadow-none [&>button:focus-visible]:shadow-none"
+        style={{
+          '& button': {
+            outline: 'none !important',
+            border: 'none !important',
+            boxShadow: 'none !important',
+            ring: 'none !important',
+            '&:focus': {
+              outline: 'none !important',
+              border: 'none !important',
+              boxShadow: 'none !important',
+              ring: 'none !important'
+            },
+            '&:focus-visible': {
+              outline: 'none !important',
+              border: 'none !important',
+              boxShadow: 'none !important',
+              ring: 'none !important'
+            }
+          }
+        }}
+      >
+        <style jsx>{`
+          button {
+            outline: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            ring: none !important;
+          }
+          button:focus {
+            outline: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            ring: none !important;
+          }
+          button:focus-visible {
+            outline: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            ring: none !important;
+          }
+        `}</style>
         <DialogHeader>
           <DialogTitle>いいねした人</DialogTitle>
+          <DialogDescription>この楽曲にいいねしたユーザー一覧</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 max-h-60 overflow-y-auto">
+          {console.log('いいね一覧表示 - likes:', likes, 'length:', likes.length)}
           {likes.length === 0 ? (
             <div className="text-center text-muted-foreground py-4">
               まだいいねがありません
@@ -2247,7 +2357,13 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <div className="text-base font-medium">{like.users.display_name || like.users.username}</div>
+                  <Link 
+                    href={`/app/friends/${like.users.id}`}
+                    className="text-base font-medium text-white hover:text-blue-400 transition-colors block"
+                    onClick={() => setShowLikesModal(false)}
+                  >
+                    {like.users.display_name || like.users.username}
+                  </Link>
                   <div className="text-xs text-muted-foreground">@{like.users.username}</div>
                 </div>
               </div>
@@ -2262,6 +2378,7 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>コメント</DialogTitle>
+          <DialogDescription>この楽曲へのコメント一覧</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 max-h-80 overflow-y-auto">
           {comments.length === 0 ? (
@@ -2318,6 +2435,16 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
         itemName={item?.title}
         isLoading={isLoading}
       />
+      
+      {/* コメントモーダル */}
+      {selectedItemId && (
+        <CommentModal
+          open={commentModalOpen}
+          onOpenChange={setCommentModalOpen}
+          shelfItemId={selectedItemId}
+          currentUserId={user?.id}
+        />
+      )}
     </>
   )
 }
