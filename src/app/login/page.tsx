@@ -1,12 +1,13 @@
 "use client"
 
+import { Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { signInWithSpotify } from "@/lib/auth"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [loading, setLoading] = useState(false)
   const [clearingSession, setClearingSession] = useState(false)
   const searchParams = useSearchParams()
@@ -93,5 +94,13 @@ export default function LoginPage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black">読み込み中...</div>}>
+      <LoginPageContent />
+    </Suspense>
   )
 }

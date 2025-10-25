@@ -1,10 +1,11 @@
 "use client"
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
 
-export default function FriendShelfNotFound() {
+function FriendShelfNotFoundContent() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const isSpotifyAuthRequired = searchParams.get('spotify_auth_required') === 'true'
@@ -39,5 +40,13 @@ export default function FriendShelfNotFound() {
         </a>
       </div>
     </div>
+  )
+}
+
+export default function FriendShelfNotFound() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black text-white flex items-center justify-center">読み込み中...</div>}>
+      <FriendShelfNotFoundContent />
+    </Suspense>
   )
 }

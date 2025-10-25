@@ -899,9 +899,5 @@ function FriendsPageContent() {
 }
 
 export default function FriendsPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-black text-white grid place-items-center p-4">読み込み中...</div>}>
-      <FriendsPageContent />
-    </Suspense>
-  )
+  return <FriendsPageContent />
 }
