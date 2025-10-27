@@ -68,9 +68,15 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
     if (now - lastSubmitTime < 500) {
       return
     }
-    setLastSubmitTime(now)
     
+    // 既に処理中の場合は無視
+    if (pending) {
+      return
+    }
+    
+    setLastSubmitTime(now)
     setPending(true)
+    
     try {
       const res = await createShelf(formData) as any
       if (res?.error) {
@@ -1326,6 +1332,11 @@ function SearchPanel() {
     if (!currentShelf) { 
       console.log('No shelf selected')
       setAdding(null)
+      toast({
+        title: '棚を選択してください',
+        description: '楽曲を追加するには、まず棚を選択してください。',
+        variant: 'destructive'
+      })
       return 
     }
     const shelfId = currentShelf.getAttribute('data-shelf-id')
@@ -1333,6 +1344,11 @@ function SearchPanel() {
     if (!shelfId) { 
       console.log('No shelfId found')
       setAdding(null)
+      toast({
+        title: '棚を選択してください',
+        description: '楽曲を追加するには、まず棚を選択してください。',
+        variant: 'destructive'
+      })
       return 
     }
     
