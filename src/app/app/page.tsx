@@ -182,50 +182,39 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                 }}
                 autoFocus={expand}
               />
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const input = document.querySelector('input[name="name"]') as HTMLInputElement
-                    if (input && input.value.trim()) {
-                      const formData = new FormData()
-                      formData.set('name', input.value.trim())
-                      await handleSubmit(formData)
-                    }
-                  }}
-                  disabled={pending}
-                  className="px-3 py-1 rounded-full text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  style={{ backgroundColor: '#333333' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#666666' }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
-                >
-                  {pending ? '...' : '作成'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExpand(false)}
-                  className="w-6 h-6 rounded-full bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  const input = document.querySelector('input[name="name"]') as HTMLInputElement
+                  if (input && input.value.trim()) {
+                    const formData = new FormData()
+                    formData.set('name', input.value.trim())
+                    await handleSubmit(formData)
+                  }
+                }}
+                disabled={pending}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 rounded-full text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{ backgroundColor: '#333333' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#666666' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
+              >
+                {pending ? '...' : '作成'}
+              </button>
             </div>
           </div>
           {/* toggle button */}
-          {!expand && (
-            <button
-              type="button"
-              onClick={() => setExpand(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white transition-colors"
-              style={{ backgroundColor: '#333333' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
-              aria-label="作成を開く"
-            >
-              <span className="inline-block transition-transform duration-300">＋</span>
-              <span>作成</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setExpand((v) => !v)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white transition-colors"
+            style={{ backgroundColor: '#333333' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
+            aria-label={expand ? '作成を閉じる' : '作成を開く'}
+          >
+            <span className={`inline-block transition-transform duration-300 ${expand ? 'rotate-45' : 'rotate-0'}`}>＋</span>
+            <span>{expand ? '✕' : '作成'}</span>
+          </button>
         </div>
       )}
     </div>
