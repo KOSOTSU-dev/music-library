@@ -12,7 +12,7 @@ export interface User {
 
 // Spotify OAuth認証
 export async function signInWithSpotify(options?: { forceReauth?: boolean }) {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://music-library-rouge.vercel.app')
   
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'spotify',
