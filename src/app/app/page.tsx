@@ -212,8 +212,14 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
             aria-label={expand ? '作成を閉じる' : '作成を開く'}
           >
-            <span className={`inline-block transition-transform duration-300 ${expand ? 'rotate-45' : 'rotate-0'}`}>＋</span>
-            <span>{expand ? '✕' : '作成'}</span>
+            {expand ? (
+              <span className="inline-block transition-transform duration-300">✕</span>
+            ) : (
+              <>
+                <span className="inline-block transition-transform duration-300">＋</span>
+                <span>作成</span>
+              </>
+            )}
           </button>
         </div>
       )}
