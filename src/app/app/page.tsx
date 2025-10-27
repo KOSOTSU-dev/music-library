@@ -110,30 +110,86 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                 <DialogTitle>棚を作成</DialogTitle>
                 <DialogDescription>新しい棚を作成して楽曲を整理します</DialogDescription>
               </DialogHeader>
-              <form action={handleSubmit} className="flex gap-2">
-                <input name="name" placeholder="新しいギャラリー名" className="flex-1 rounded px-2 py-1 text-base bg-black text-white outline-none" />
-                <Button type="submit" size="sm" disabled={pending} className="text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-200 border-none" style={{ backgroundColor: '#333333' }}>
-        {pending ? '作成中...' : '作成'}
-      </Button>
-    </form>
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input 
+                    name="name" 
+                    placeholder="新しいギャラリー名" 
+                    className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border border-gray-600 focus:border-white" 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setExpand(false)
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const form = document.createElement('form')
+                      const input = document.querySelector('input[name="name"]') as HTMLInputElement
+                      if (input && input.value.trim()) {
+                        const formData = new FormData()
+                        formData.set('name', input.value.trim())
+                        await handleSubmit(formData)
+                      }
+                    }}
+                    disabled={pending}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 rounded-full bg-white text-black flex items-center justify-center hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pending ? '...' : '✓'}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpand(false)}
+                  className="w-8 h-8 rounded-full bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500"
+                >
+                  ✕
+                </button>
+              </div>
             </DialogContent>
           </Dialog>
         </>
       ) : (
-        <form action={handleSubmit} className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {/* expanding input */}
           <div className={`transition-all duration-300 ease-out overflow-hidden ${expand ? 'w-64 sm:w-80 opacity-100' : 'w-0 opacity-0'} `}>
-            <input
-              name="name"
-              placeholder="新しいギャラリー名"
-              className="w-full rounded px-3 py-2 text-base bg-black text-white outline-none"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setExpand(false)
-              }}
-              autoFocus={expand}
-            />
+            <div className="relative">
+              <input
+                name="name"
+                placeholder="新しいギャラリー名"
+                className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border border-gray-600 focus:border-white"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setExpand(false)
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const input = e.currentTarget as HTMLInputElement
+                    if (input.value.trim()) {
+                      const formData = new FormData()
+                      formData.set('name', input.value.trim())
+                      handleSubmit(formData)
+                    }
+                  }
+                }}
+                autoFocus={expand}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const input = document.querySelector('input[name="name"]') as HTMLInputElement
+                  if (input && input.value.trim()) {
+                    const formData = new FormData()
+                    formData.set('name', input.value.trim())
+                    await handleSubmit(formData)
+                  }
+                }}
+                disabled={pending}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 rounded-full bg-white text-black flex items-center justify-center hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pending ? '...' : '✓'}
+              </button>
+            </div>
           </div>
-          {/* toggle/create button */}
+          {/* toggle button */}
           <button
             type="button"
             onClick={() => setExpand((v) => !v)}
@@ -144,9 +200,9 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
             aria-label={expand ? '作成を閉じる' : '作成を開く'}
           >
             <span className={`inline-block transition-transform duration-300 ${expand ? 'rotate-45' : 'rotate-0'}`}>＋</span>
-            <span>作成</span>
+            <span>{expand ? '✕' : '作成'}</span>
           </button>
-        </form>
+        </div>
       )}
     </div>
   )
