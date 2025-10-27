@@ -61,6 +61,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
   const [pending, setPending] = useState(false)
   const [expand, setExpand] = useState(false)
   const [lastSubmitTime, setLastSubmitTime] = useState(0)
+  const [lastEnterTime, setLastEnterTime] = useState(0)
   
   const handleSubmit = async (formData: FormData) => {
     // 重複送信を防ぐ（500ms以内の連続送信をブロック）
@@ -133,9 +134,9 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                       }
                     }}
                     disabled={pending}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 rounded-full bg-white text-black flex items-center justify-center hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 rounded-full bg-white text-black text-sm hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {pending ? '...' : '✓'}
+                    {pending ? '...' : '作成'}
                   </button>
                 </div>
                 <button
@@ -162,6 +163,12 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                   if (e.key === 'Escape') setExpand(false)
                   if (e.key === 'Enter') {
                     e.preventDefault()
+                    const now = Date.now()
+                    // 2回目のエンター以降は2秒間隔で制限
+                    if (now - lastEnterTime < 2000) {
+                      return
+                    }
+                    setLastEnterTime(now)
                     const input = e.currentTarget as HTMLInputElement
                     if (input.value.trim()) {
                       const formData = new FormData()
@@ -183,9 +190,9 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                   }
                 }}
                 disabled={pending}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 rounded-full bg-white text-black flex items-center justify-center hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 rounded-full bg-white text-black text-sm hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {pending ? '...' : '✓'}
+                {pending ? '...' : '作成'}
               </button>
             </div>
           </div>
