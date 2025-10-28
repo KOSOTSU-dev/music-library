@@ -62,6 +62,16 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
   const [expand, setExpand] = useState(false)
   const [lastSubmitTime, setLastSubmitTime] = useState(0)
   const [lastEnterTime, setLastEnterTime] = useState(0)
+  const [isAnimating, setIsAnimating] = useState(false)
+  
+  const handleClose = () => {
+    setIsAnimating(true)
+    // アニメーション完了後に状態を変更
+    setTimeout(() => {
+      setExpand(false)
+      setIsAnimating(false)
+    }, 300) // CSS transitionの時間に合わせる
+  }
   
   const handleSubmit = async (formData: FormData) => {
     // 重複送信を防ぐ（500ms以内の連続送信をブロック）
@@ -144,7 +154,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setExpand(false)}
+                  onClick={handleClose}
                   className="w-8 h-8 rounded-full bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500"
                 >
                   ✕
@@ -163,7 +173,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                 placeholder="新しいギャラリー名"
                 className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border border-gray-600 focus:border-white"
                 onKeyDown={(e) => {
-                  if (e.key === 'Escape') setExpand(false)
+                  if (e.key === 'Escape') handleClose()
                   if (e.key === 'Enter') {
                     e.preventDefault()
                     const now = Date.now()
@@ -205,14 +215,20 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
           {/* toggle button */}
           <button
             type="button"
-            onClick={() => setExpand((v) => !v)}
+            onClick={() => {
+              if (expand || isAnimating) {
+                handleClose()
+              } else {
+                setExpand(true)
+              }
+            }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white transition-colors"
             style={{ backgroundColor: '#333333' }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d' }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
-            aria-label={expand ? '作成を閉じる' : '作成を開く'}
+            aria-label={(expand || isAnimating) ? '作成を閉じる' : '作成を開く'}
           >
-            {expand ? (
+            {(expand || isAnimating) ? (
               <span className="inline-block transition-transform duration-300">✕</span>
             ) : (
               <>
