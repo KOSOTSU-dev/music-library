@@ -70,7 +70,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
     setTimeout(() => {
       setExpand(false)
       setIsAnimating(false)
-    }, 300) // CSS transitionの時間に合わせる
+    }, 500) // 0.5秒後に作成ボタンに切り替え
   }
   
   const handleSubmit = async (formData: FormData) => {
