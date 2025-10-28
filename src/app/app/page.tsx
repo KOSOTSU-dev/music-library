@@ -222,7 +222,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                 setExpand(true)
               }
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white transition-colors"
+            className="flex items-center justify-center w-10 h-10 rounded-full text-white transition-colors"
             style={{ backgroundColor: '#333333' }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d' }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
@@ -231,10 +231,7 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
             {(expand || isAnimating) ? (
               <span className="inline-block transition-transform duration-300">✕</span>
             ) : (
-              <>
-                <span className="inline-block transition-transform duration-300">＋</span>
-                <span>作成</span>
-              </>
+              <span className="inline-block transition-transform duration-300">＋</span>
             )}
           </button>
         </div>
