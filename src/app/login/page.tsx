@@ -66,32 +66,58 @@ function LoginPageContent() {
   }, [forceSpotifyReauth, loading])
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-black">
-      <div className="flex flex-col items-center gap-4">
-        <h1 className="text-2xl font-bold text-white">Music Library</h1>
-        <div className="flex flex-col gap-2">
-          <Button 
-            onClick={() => handleLogin(forceSpotifyReauth)} 
-            // 自動起動がうまく行かない環境向けに、常に再押下可能にする
-            disabled={false}
-            className="bg-green-500 hover:bg-green-600 text-white"
-          >
-            {loading && !forceSpotifyReauth ? "リダイレクト中..." : "Spotifyでログイン"}
-          </Button>
-          <Button 
-            onClick={handleLoginWithDifferentAccount} 
-            disabled={clearingSession}
-            variant="outline"
-            className="border-gray-600 text-gray-300 hover:bg-gray-800"
-          >
-            {clearingSession ? "セッションクリア中..." : "別のアカウントでログイン"}
-          </Button>
-        </div>
-        {forceSpotifyReauth && (
-          <p className="text-sm text-gray-400 text-center max-w-md">
-            別のアカウントでログインするため、Spotifyの認証画面にリダイレクトします。
+    <main className="min-h-screen bg-black text-white">
+      <div className="mx-auto max-w-6xl px-4 py-16 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        {/* 左カラム: 説明 */}
+        <section className="space-y-5">
+          <h1 className="text-3xl font-bold">Music Library</h1>
+          <p className="text-gray-300 leading-relaxed">
+            このアプリは、お気に入りの楽曲を棚で整理・共有し、フレンドのギャラリーに
+            いいねやコメントでリアクションできるコレクションアプリです。ダークテーマの
+            UI とドラッグ&ドロップで直感的に操作できます。
           </p>
-        )}
+          <div className="rounded-lg bg-[#111111] border border-[#333333] p-5 space-y-3">
+            <h2 className="font-semibold">ゲストで試す（推奨）</h2>
+            <div className="text-sm text-gray-200">
+              <div>メール: <span className="font-mono">guest.kosotsu@outlook.jp</span></div>
+              <div>パスワード: <span className="font-mono">1234abcd!!</span></div>
+            </div>
+            <ul className="text-sm text-gray-400 list-disc pl-5 space-y-1">
+              <li>まず Spotify を上記メール・パスワードでログインしてください。</li>
+              <li>Spotify 認証メールが届くため、Outlook にもログインして認証を完了してください。</li>
+              <li>その後、このページの「Spotifyでログイン」を押すとアプリに入れます。</li>
+            </ul>
+          </div>
+        </section>
+
+        {/* 右カラム: ボタン群 */}
+        <section className="flex flex-col items-center gap-4 lg:justify-center">
+          <div className="w-full max-w-sm rounded-xl bg-[#111111] border border-[#333333] p-6 space-y-4">
+            <h2 className="text-lg font-semibold">ログイン</h2>
+            <div className="flex flex-col gap-3">
+              <Button 
+                onClick={() => handleLogin(forceSpotifyReauth)} 
+                disabled={false}
+                className="bg-green-500 hover:bg-green-600 text-white"
+              >
+                {loading && !forceSpotifyReauth ? "リダイレクト中..." : "Spotifyでログイン"}
+              </Button>
+              <Button 
+                onClick={handleLoginWithDifferentAccount} 
+                disabled={clearingSession}
+                variant="outline"
+                className="border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                {clearingSession ? "セッションクリア中..." : "別のアカウントでログイン"}
+              </Button>
+            </div>
+            {forceSpotifyReauth && (
+              <p className="text-sm text-gray-400">
+                別のアカウントでログインするため、Spotifyの認証画面にリダイレクトします。
+              </p>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   )
