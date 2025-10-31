@@ -288,7 +288,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       ? `https://open.spotify.com/track/${spotifyId}`
       : spotifyType === 'album'
         ? `https://open.spotify.com/album/${spotifyId}`
-        : `https://open.spotify.com/${spotifyType}/${spotifyId}`
+        : `いてhttps://open.spotify.com/${spotifyType}/${spotifyId}`
     window.open(url, '_blank')
   }
 

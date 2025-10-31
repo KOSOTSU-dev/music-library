@@ -64,7 +64,19 @@ export default function Home() {
               <div>パスワード: <span className="font-mono">1234abcd!!</span></div>
             </div>
             <ol className="text-sm text-gray-400 list-decimal pl-5 space-y-1">
-              <li>まず Outlook にログインし、上記メールの受信を確認できる状態にします。</li>
+              <li>
+                まず
+                {' '}
+                <a
+                  href="https://www.microsoft.com/ja-jp/microsoft-365/outlook/email-and-calendar-software-microsoft-outlook"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-blue-400 hover:text-blue-300"
+                >
+                  Outlook にログイン
+                </a>
+                し、上記メールの受信を確認できる状態にします。
+              </li>
               <li>次に Spotify を上記メール・パスワードでログインします。</li>
               <li>Spotify の認証メールが届くので、Outlook で認証を完了してください。</li>
               <li>その後、下の「Spotifyでログイン」からアプリに入れます。</li>
