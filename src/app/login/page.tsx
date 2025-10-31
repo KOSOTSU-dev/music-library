@@ -82,11 +82,12 @@ function LoginPageContent() {
               <div>メール: <span className="font-mono">guest.kosotsu@outlook.jp</span></div>
               <div>パスワード: <span className="font-mono">1234abcd!!</span></div>
             </div>
-            <ul className="text-sm text-gray-400 list-disc pl-5 space-y-1">
-              <li>まず Spotify を上記メール・パスワードでログインしてください。</li>
-              <li>Spotify 認証メールが届くため、Outlook にもログインして認証を完了してください。</li>
-              <li>その後、このページの「Spotifyでログイン」を押すとアプリに入れます。</li>
-            </ul>
+            <ol className="text-sm text-gray-400 list-decimal pl-5 space-y-1">
+              <li>まず Outlook にログインし、上記メールの受信を確認できる状態にします。</li>
+              <li>次に Spotify を上記メール・パスワードでログインします。</li>
+              <li>Spotify の認証メールが届くので、Outlook で認証を完了してください。</li>
+              <li>その後、下の「Spotifyでログイン」からアプリに入れます。</li>
+            </ol>
           </div>
         </section>
 
