@@ -90,7 +90,7 @@ export default function Home() {
             <h2 className="text-lg font-semibold">ログイン</h2>
             <div className="text-sm text-gray-400">セッション: {hasSession === null ? '確認中...' : hasSession ? 'あり' : 'なし'}</div>
             <Button asChild className="bg-green-500 hover:bg-green-600 text-white">
-              <Link href="/login">Spotifyでログイン</Link>
+              <Link href="/login">ログインページへ</Link>
             </Button>
             {/* 別のアカウントでログインは非表示 */}
           </div>
