@@ -4,10 +4,9 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Shield, RefreshCw, LogOut } from "lucide-react"
+import { ArrowLeft, Shield, LogOut } from "lucide-react"
 import Link from "next/link"
 import GlobalPlayer from "@/components/GlobalPlayer"
-import { signInWithSpotify } from "@/lib/auth"
 
 interface User {
   id: string
@@ -19,7 +18,6 @@ interface User {
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<User | null>(null)
-  const [highlightReauth, setHighlightReauth] = useState(false)
 
   // プロフィール情報を読み込み
   useEffect(() => {
@@ -39,21 +37,10 @@ export default function SettingsPage() {
     loadProfile()
   }, [])
 
-  useEffect(() => {
-    // ルートからの通知で強調
-    const f = typeof window !== 'undefined' ? localStorage.getItem('spotify:reauth-required') : null
-    if (f === '1') {
-      setHighlightReauth(true)
-      // 表示後3秒で自然に消す
-      const t = setTimeout(() => setHighlightReauth(false), 3000)
-      return () => clearTimeout(t)
-    }
-  }, [])
-
   const handleLogout = async () => {
     if (confirm('ログアウトしますか？')) {
       await supabase.auth.signOut()
-      window.location.href = '/login'
+      window.location.href = '/'
     }
   }
 
@@ -87,13 +74,6 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-white">Spotifyアカウント</div>
-              <div className="text-sm text-muted-foreground">音楽データの取得に使用</div>
-            </div>
-            <div className="text-sm text-muted-foreground">連携済み</div>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
               <div className="font-medium text-white">アカウント作成日</div>
               <div className="text-sm text-muted-foreground">
                 {profile?.created_at && new Date(profile.created_at).toLocaleDateString('ja-JP')}
@@ -103,30 +83,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Spotify再ログイン */}
-      <Card className="bg-[#1a1a1a] border-[#333333]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <RefreshCw className="h-5 w-5" />
-            Spotify連携の再ログイン
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              再生や検索でエラーが出る場合は、Spotify連携を再ログインしてください。
-            </p>
-            <Button
-              onClick={() => {
-                void signInWithSpotify()
-              }}
-              className={`bg-[#666666] text-white hover:bg-[#4d4d4d] relative ${highlightReauth ? 'ring-2 ring-red-500 animate-pulse' : ''}`}
-            >
-              <span className={`${highlightReauth ? 'animate-bounce' : ''}`}>Spotifyに再ログイン</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
       </div>
       <GlobalPlayer currentShelfItems={[]} />
     </div>
