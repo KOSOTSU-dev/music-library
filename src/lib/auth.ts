@@ -199,7 +199,7 @@ export async function resetPasswordForEmail(email: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://music-library-rouge.vercel.app')
   
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${baseUrl}/auth/reset-password`,
+    redirectTo: `${baseUrl}/auth/callback?next=/auth/reset-password`,
   })
 
   if (error) {

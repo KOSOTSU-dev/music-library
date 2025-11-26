@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { signInWithEmail, signUpWithEmail, signInAnonymously, resetPasswordForEmail } from "@/lib/auth"
@@ -42,6 +42,7 @@ function LoginPageContent() {
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const translateAuthError = (rawMessage?: string) => {
     if (!rawMessage) return "エラーが発生しました。時間をおいて再度お試しください。"
@@ -65,6 +66,20 @@ function LoginPageContent() {
   }
 
   useEffect(() => {
+    // URLパラメータにcodeがある場合（パスワードリセットやOAuth認証のコールバック）
+    const code = searchParams.get('code')
+    const type = searchParams.get('type')
+    
+    if (code) {
+      // codeがある場合は、/auth/callbackで処理
+      // typeパラメータも一緒に渡す（パスワードリセットの場合はtype=recovery）
+      const callbackUrl = type 
+        ? `/auth/callback?code=${code}&type=${type}`
+        : `/auth/callback?code=${code}`
+      router.replace(callbackUrl)
+      return
+    }
+
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -74,7 +89,7 @@ function LoginPageContent() {
       } catch {}
     }
     checkSession()
-  }, [router])
+  }, [router, searchParams])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
