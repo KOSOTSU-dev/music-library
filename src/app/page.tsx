@@ -281,7 +281,7 @@ function LoginPageContent() {
       </div>
 
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-        <DialogContent className="bg-[#1a1a1a] border-[#333333] text-white">
+        <DialogContent className="bg-[#1a1a1a] border-[#333333] text-white [&>button]:bg-transparent [&>button]:text-gray-400 [&>button]:hover:text-white [&>button]:hover:bg-transparent [&>button]:focus:outline-none [&>button]:focus:ring-0 [&>button]:border-none [&>button]:shadow-none">
           <DialogHeader>
             <DialogTitle>パスワードリセット</DialogTitle>
             <DialogDescription className="text-gray-400">
