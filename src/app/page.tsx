@@ -148,7 +148,10 @@ function LoginPageContent() {
     <main className="min-h-screen bg-black text-white">
       <div className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-6 px-8 py-12 flex flex-col justify-center">
-          <h1 className="text-4xl font-bold" style={{ fontFamily: '"Science Gothic", sans-serif', fontWeight: 600, fontOpticalSizing: "auto", fontStyle: "normal", fontVariationSettings: '"slnt" 0, "wdth" 100, "CTRS" 0', letterSpacing: "0.1em" }}>Music Library</h1>
+          <div className="space-y-2">
+            <p className="text-lg font-medium uppercase tracking-[0.2em] text-gray-400">Welcome to</p>
+            <h1 className="text-4xl font-bold" style={{ fontFamily: '"Science Gothic", sans-serif', fontWeight: 600, fontOpticalSizing: "auto", fontStyle: "normal", fontVariationSettings: '"slnt" 0, "wdth" 100, "CTRS" 0', letterSpacing: "0.1em" }}>Music Library</h1>
+          </div>
           <p className="text-gray-300 leading-relaxed">
             このアプリは、お気に入りの楽曲を棚で整理・共有し、フレンドのギャラリーに
             いいねやコメントでリアクションできるコレクションアプリです。ダークテーマの
