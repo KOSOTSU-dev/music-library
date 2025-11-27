@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { updatePassword } from "@/lib/auth"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 
 type Status = "checking" | "ready" | "error" | "success"
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
@@ -181,6 +181,18 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+        <p className="text-gray-400 text-sm">読み込み中...</p>
+      </main>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
 
