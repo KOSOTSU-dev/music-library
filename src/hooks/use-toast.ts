@@ -27,26 +27,26 @@ export function useToast() {
     }
   }, [])
 
-        const toast = useCallback(({ title, description, variant = "default" }: Omit<Toast, "id">) => {
+  const toast = useCallback(({ title, description, variant = "default" }: Omit<Toast, "id">) => {
     const id = Math.random().toString(36).substr(2, 9)
     const newToast = { id, title, description, variant }
     
     globalToasts = [...globalToasts, newToast]
     notifyListeners()
     
-    // 自動で削除（1.5秒後にフェードアウト開始）
+    // 自動で削除（1.5秒 → 1.7倍の 2.55秒後にフェードアウト開始）
     setTimeout(() => {
       globalToasts = globalToasts.filter(t => t.id !== id)
       notifyListeners()
-    }, 1500)
-        }, [])
+    }, 2550)
+  }, [])
 
   const dismiss = useCallback((toastId: string) => {
     globalToasts = globalToasts.filter(t => t.id !== toastId)
     notifyListeners()
   }, [])
 
-        return { toast, dismiss, toasts }
+  return { toast, dismiss, toasts }
 }
 
 // 便利関数: 再ログイントースト（どこからでも呼べる）

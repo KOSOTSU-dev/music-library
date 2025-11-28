@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { ArrowLeft, Calendar, Music, Heart, MessageCircle, Play, Pause, ExternalLink, ChevronDown, Share2, Trash2, StickyNote, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowLeft, Calendar, Music, Heart, MessageCircle, Play, ExternalLink, ChevronDown, Share2, StickyNote, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import CommentSection from "@/components/comments/CommentSection"
@@ -31,6 +31,7 @@ interface Shelf {
   is_public: boolean
   created_at: string
   user: User
+  user_id: string
 }
 
 interface ShelfItem {
@@ -42,6 +43,7 @@ interface ShelfItem {
   spotify_type: string
   spotify_id: string
   position: number
+  memo?: string | null
 }
 
 interface Props {
@@ -64,10 +66,11 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
   const [userLikes, setUserLikes] = useState<Record<string, boolean>>({})
   const [commentModalOpen, setCommentModalOpen] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
-  const [likedUsers, setLikedUsers] = useState<Record<string, User[]>>({})
-  const [showLikedUsers, setShowLikedUsers] = useState<string | null>(null)
+const [likedUsers, setLikedUsers] = useState<Record<string, User[]>>({})
+const [showLikedUsers, setShowLikedUsers] = useState<string | null>(null)
   const [itemDetailOpen, setItemDetailOpen] = useState(false)
-  const { toast } = useToast()
+const { toast } = useToast()
+const isOwner = currentUserId === shelf?.user_id
   
   // ナビゲーション機能
   const currentIndex = selectedItem && items ? items.findIndex(item => item.id === selectedItem.id) : -1
@@ -183,10 +186,21 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         return
       }
 
-      const users = data?.map(like => like.user).filter(Boolean) as User[]
+      const rawUsers = ((data ?? []) as Array<{ user: any }>).map(like => like.user).filter(Boolean) as Array<{
+        id: string
+        username?: string | null
+        display_name: string
+        avatar_url: string | null
+      }>
+      const normalizedUsers: User[] = rawUsers.map(user => ({
+        id: user.id,
+        username: user.username || '',
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+      }))
       setLikedUsers(prev => ({
         ...prev,
-        [itemId]: users
+        [itemId]: normalizedUsers
       }))
     } catch (error) {
       console.error('いいねユーザー取得エラー:', error)
@@ -236,18 +250,18 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         if (deleteError) {
           console.error('いいね削除エラー:', deleteError)
           toast({ title: 'エラー', description: 'いいねの削除に失敗しました', variant: 'destructive' })
-          return
-        }
-
-        // いいね数を更新
-        setLikeCounts(prev => ({
-          ...prev,
+        return
+      }
+      
+      // いいね数を更新
+      setLikeCounts(prev => ({
+        ...prev,
           [itemId]: Math.max(0, (prev[itemId] || 0) - 1)
-        }))
-        
-        // ユーザーのいいね状態を更新
-        setUserLikes(prev => ({
-          ...prev,
+      }))
+      
+      // ユーザーのいいね状態を更新
+      setUserLikes(prev => ({
+        ...prev,
           [itemId]: false
         }))
       } else {
@@ -301,9 +315,20 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       const accessToken: string | undefined = (session as any)?.provider_token || (session as any)?.providerToken
       
       if (!accessToken) {
-        console.log('アクセストークンが見つかりません')
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
+        // 埋め込みプレイヤーで再生
+        window.dispatchEvent(new CustomEvent('track:playing', {
+          detail: {
+            id: item.spotify_id,
+            title: item.title,
+            artist: item.artist,
+            album: item.album,
+            image_url: item.image_url,
+            duration_ms: 0,
+            spotify_id: item.spotify_id,
+            spotify_type: item.spotify_type,
+            shelfItems: items
+          }
+        }))
         return
       }
 
@@ -380,9 +405,20 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       console.log('再生レスポンス:', playRes.status, playRes.statusText)
 
       if (playRes.status === 401) {
-        console.log('認証エラー、再認証が必要')
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
+        // 埋め込みプレイヤーで再生
+        window.dispatchEvent(new CustomEvent('track:playing', {
+          detail: {
+            id: item.spotify_id,
+            title: item.title,
+            artist: item.artist,
+            album: item.album,
+            image_url: item.image_url,
+            duration_ms: 0,
+            spotify_id: item.spotify_id,
+            spotify_type: item.spotify_type,
+            shelfItems: items
+          }
+        }))
         return
       }
 
@@ -535,7 +571,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         console.log('🔐 フレンドギャラリー - 認証状態:', { user: user?.id, authError })
         setCurrentUserId(user?.id || null)
-        
+
         // currentUserIdを設定してからloadCountsを呼び出し
         if (user?.id) {
           console.log('currentUserId設定後、loadCountsを呼び出します')
@@ -658,49 +694,31 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
         // いいね数とコメント数を取得（currentUserIdが設定された後）
         if (user?.id) {
           console.log('currentUserId設定後、loadCountsを呼び出します')
-          await loadCounts(baseItems)
+        await loadCounts(baseItems)
         } else {
           console.log('currentUserIdが未設定のため、loadCountsをスキップします')
         }
 
         // 画像URLをSpotifyから取得して常に最新に上書き（DBは変更せず表示のみ上書き）
         try {
-          const { data: { session } } = await supabase.auth.getSession()
-          const accessToken = (session as any)?.provider_token || (session as any)?.providerToken
-          console.log('フレンドギャラリー - アクセストークン:', accessToken ? 'あり' : 'なし')
-          
-          if (accessToken && baseItems.length > 0) {
-            // 各楽曲を個別に検索して正しい画像を取得（楽曲名とアーティスト名で検索）
+          if (baseItems.length > 0) {
             for (const item of baseItems) {
-              if (item.spotify_type !== 'track' || !item.title || !item.artist) continue
+              if (!item.spotify_id) continue
               
               try {
-                console.log(`楽曲検索中: ${item.title} by ${item.artist}`)
-                
-                // 楽曲名とアーティスト名で検索
-                const searchQuery = encodeURIComponent(`track:"${item.title}" artist:"${item.artist}"`)
-                const searchRes = await fetch(
-                  `https://api.spotify.com/v1/search?q=${searchQuery}&type=track&limit=1`,
-                  {
-                    headers: { Authorization: `Bearer ${accessToken}` }
-                  }
-                )
+                const metaRes = await fetch(`/api/spotify/metadata?id=${encodeURIComponent(item.spotify_id)}&type=${item.spotify_type}`)
 
-                if (!searchRes.ok) {
-                  console.warn(`楽曲検索失敗: ${item.title} - ${searchRes.status}`)
+                if (!metaRes.ok) {
+                  console.warn(`Spotifyメタデータ取得失敗: ${item.spotify_id} - ${metaRes.status}`)
                   continue
                 }
 
-                const searchData = await searchRes.json()
-                const tracks = searchData.tracks?.items || []
-
-                if (tracks.length === 0) {
-                  console.warn(`楽曲が見つからない: ${item.title} by ${item.artist}`)
-                  continue
-                }
-
-                const correctTrack = tracks[0]
-                const correctImageUrl = correctTrack.album?.images?.[0]?.url
+                const metaData = await metaRes.json()
+                const correctImageUrl =
+                  metaData.image ||
+                  metaData.album?.images?.[0]?.url ||
+                  metaData.images?.[0]?.url ||
+                  null
 
                 if (correctImageUrl && correctImageUrl !== item.image_url) {
                   console.log(`楽曲画像更新: ${item.title} -> ${correctImageUrl}`)
@@ -711,12 +729,8 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                     return it
                   }))
                 }
-
-                // APIレート制限を避けるため少し待機
-                await new Promise(resolve => setTimeout(resolve, 100))
-
-              } catch (searchError) {
-                console.warn(`楽曲検索エラー: ${item.title}`, searchError)
+              } catch (metaError) {
+                console.warn(`Spotifyメタデータ取得エラー: ${item.spotify_id}`, metaError)
               }
             }
           }
@@ -748,39 +762,9 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
     })
   }
 
-  const handleModalPlay = async () => {
+  const handleModalPlay = () => {
     if (!selectedItem) return
-    await handlePlay(selectedItem)
-  }
-
-  const handleModalPause = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken: string | undefined = (session as any)?.provider_token || (session as any)?.providerToken
-      if (!accessToken) {
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
-        return
-      }
-
-      const pauseRes = await fetch('https://api.spotify.com/v1/me/player/pause', {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      })
-
-      if (pauseRes.status === 401) {
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
-        return
-      }
-
-      if (!pauseRes.ok) {
-        toast({ title: 'エラー', description: '一時停止に失敗しました', variant: 'destructive' })
-      }
-    } catch (e) {
-      console.error('一時停止エラー:', e)
-      toast({ title: 'エラー', description: '一時停止に失敗しました', variant: 'destructive' })
-    }
+    handlePlay(selectedItem)
   }
 
   const spotifyUrl = (item: ShelfItem) => {
@@ -814,9 +798,13 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
     )
   }
 
+  if (!shelf) {
+    return null
+  }
+
   return (
-    <div className="relative min-h-screen bg-black text-white">
-      <div className="w-full px-6 pb-24 space-y-1">
+    <div className="relative h-screen bg-black text-white overflow-hidden">
+      <div className="w-full px-6 pb-0 space-y-4 h-full flex flex-col overflow-hidden">
         {/* ヘッダー */}
         <div className="flex items-center gap-4">
         <Button asChild variant="outline" size="sm" className="text-white bg-[#1a1a1a] border-[#1a1a1a] hover:bg-[#333333] hover:text-white">
@@ -862,7 +850,8 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
       </div>
 
       {/* アイテム一覧 */}
-      <Card className="bg-[#1a1a1a] border-[#333333]">
+      <div className="flex-1 overflow-hidden pb-4">
+      <Card className="bg-[#1a1a1a] border-[#333333] h-full flex flex-col">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-white">
@@ -878,7 +867,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 overflow-y-auto">
           {items.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               この棚にはまだ楽曲がありません
@@ -914,31 +903,6 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                         )}
                         
 
-                        {/* ホバー時の再生・開くボタン */}
-                        <div className="absolute inset-0 flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handlePlay(item)
-                              }}
-                              className="bg-transparent text-white hover:bg-transparent rounded-full p-2 transition-all duration-200 hover:scale-110"
-                              title="再生"
-                            >
-                              <Play className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                window.open(`https://open.spotify.com/${item.spotify_type}/${item.spotify_id}`, '_blank')
-                              }}
-                              className="bg-transparent text-white hover:bg-transparent rounded-full p-2 transition-all duration-200 hover:scale-110"
-                              title="Spotifyで開く"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
                       </div>
                       <div className="space-y-1 text-white">
                         <div className="flex items-center gap-3">
@@ -960,7 +924,7 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                                   setShowLikedUsers(showLikedUsers === item.id ? null : item.id)
                                 } else {
                                   // フレンドギャラリーの場合、いいねを実行
-                                  handleLike(item.id)
+                                handleLike(item.id)
                                 }
                               }}
                               className="flex items-center gap-1 text-xs text-white transition-colors"
@@ -995,11 +959,16 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
 
     {/* 画像モーダルは廃止 */}
 
-      <GlobalPlayer />
+      <div className="fixed bottom-0 left-0 right-0 z-50 pb-4 pointer-events-none flex justify-center" style={{ bottom: '18px' }}>
+        <div className="pointer-events-auto w-full flex justify-center px-4">
+          <GlobalPlayer />
+        </div>
+      </div>
       
       {/* コメントモーダル */}
       {selectedItemId && (
@@ -1046,27 +1015,27 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             <div className="relative">
               <DialogHeader>
                 <DialogTitle className="flex-1 min-w-0 text-white pr-8 mb-2">{selectedItem.title}</DialogTitle>
-              </DialogHeader>
+          </DialogHeader>
               <div className="flex gap-2 -mt-1">
                 {/* アルバムアート */}
                 <div className="flex-shrink-0">
                   <div className="w-32 h-32 bg-[#333333] rounded-lg overflow-hidden">
-                    {selectedItem.image_url ? (
-                      <img 
-                        src={selectedItem.image_url} 
-                        alt={selectedItem.title}
+            {selectedItem.image_url ? (
+              <img
+                src={selectedItem.image_url}
+                alt={selectedItem.title}
                         className="w-full h-full object-contain"
-                      />
-                    ) : (
+              />
+            ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Music className="h-8 w-8 text-[#666666]" />
-                      </div>
-                    )}
+              </div>
+            )}
                   </div>
                 </div>
                 
                 {/* メタデータ */}
-                <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between min-w-0">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -1101,8 +1070,8 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                       </div>
                       <p className="text-base text-white truncate">{selectedItem.artist}</p>
                     </div>
-                  </div>
-                  <div>
+              </div>
+              <div>
                     <label className="text-sm text-[#666666]">アルバム</label>
                     <p className="text-base text-white">{selectedItem.album || selectedItem.title}</p>
                     {/* メモ表示 */}
@@ -1110,10 +1079,10 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                       <div className="flex items-center gap-2 mt-2">
                         <StickyNote className="h-5 w-5 text-gray-500" />
                         <div className="text-base text-white underline">{selectedItem.memo}</div>
-                      </div>
+              </div>
                     )}
-                  </div>
-                </div>
+            </div>
+          </div>
               </div>
             </div>
             
@@ -1123,7 +1092,17 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
               onClick={handlePrevious}
               disabled={!hasPrevious}
               aria-label="前の曲"
-              className={`absolute top-1/2 -translate-y-1/2 -left-1 text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors ${hasPrevious ? 'text-gray-500 hover:text-[#999999]' : 'text-gray-300 cursor-not-allowed'}`}
+              className="absolute top-1/2 -translate-y-1/2 -left-1 text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors cursor-pointer"
+              style={{
+                color: hasPrevious ? '#e6e6e6' : '#666666',
+                cursor: hasPrevious ? 'pointer' : 'not-allowed'
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = hasPrevious ? '#999999' : '#4d4d4d'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = hasPrevious ? '#e6e6e6' : '#666666'
+              }}
             >
               ‹
             </button>
@@ -1132,7 +1111,17 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
               onClick={handleNext}
               disabled={!hasNext}
               aria-label="次の曲"
-              className={`absolute top-1/2 -translate-y-1/2 -right-1 text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors ${hasNext ? 'text-gray-500 hover:text-[#999999]' : 'text-gray-300 cursor-not-allowed'}`}
+              className="absolute top-1/2 -translate-y-1/2 -right-1 text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors cursor-pointer"
+              style={{
+                color: hasNext ? '#e6e6e6' : '#666666',
+                cursor: hasNext ? 'pointer' : 'not-allowed'
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = hasNext ? '#999999' : '#4d4d4d'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = hasNext ? '#e6e6e6' : '#666666'
+              }}
             >
               ›
             </button>
@@ -1142,20 +1131,20 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
             <DialogFooter className="flex justify-start items-center -mt-4">
               <div className="flex gap-2 w-full">
                 <button
-                  type="button"
+              type="button"
                   className="group flex items-center overflow-hidden w-10 h-10 hover:w-36 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                   onClick={() => window.open(`https://open.spotify.com/${selectedItem.spotify_type}/${selectedItem.spotify_id}`, '_blank')}
                   aria-label="Spotifyで開く"
-                >
+            >
                   <span className="flex items-center justify-center text-foreground ml-0.75">
                     <ExternalLink className="h-5 w-5" />
-                  </span>
+              </span>
                   <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     Spotifyで開く
                   </span>
                 </button>
                 <button
-                  type="button"
+              type="button"
                   className="group flex items-center overflow-hidden w-10 h-10 hover:w-40 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                   onClick={() => {
                     const url = `https://open.spotify.com/${selectedItem.spotify_type}/${selectedItem.spotify_id}`
@@ -1166,51 +1155,35 @@ export default function FriendShelfDetail({ userId, shelfId }: Props) {
                     })
                   }}
                   aria-label="リンクをコピー"
-                >
+            >
                   <span className="flex items-center justify-center text-foreground ml-0.75">
                     <Share2 className="h-5 w-5" />
-                  </span>
+              </span>
                   <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     リンクをコピー
                   </span>
                 </button>
                 <button
-                  type="button"
+              type="button"
                   className="group flex items-center overflow-hidden w-10 h-10 hover:w-20 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                   onClick={() => {
                     // 再生機能は実装しない
                   }}
                   disabled
                   aria-label="再生"
-                >
+            >
                   <span className="flex items-center justify-center text-foreground ml-0.75">
                     <Play className="h-5 w-5" />
-                  </span>
+              </span>
                   <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     再生
                   </span>
                 </button>
-                <button
-                  type="button"
-                  className="group flex items-center overflow-hidden w-10 h-10 hover:w-28 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-                  onClick={() => {
-                    // 一時停止機能は実装しない
-                  }}
-                  disabled
-                  aria-label="一時停止"
-                >
-                  <span className="flex items-center justify-center text-foreground ml-0.75">
-                    <Pause className="h-5 w-5" />
-                  </span>
-                  <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    一時停止
-                  </span>
-                </button>
-              </div>
+          </div>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
-  )
+        </DialogContent>
+      </Dialog>
+    )}
+  </div>
+)
 }

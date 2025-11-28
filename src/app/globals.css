@@ -130,5 +130,219 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
   }
+  
+  /* スクロールバー用の右側余白 */
+  .scrollbar-spacing {
+    padding-right: 4px;
+  }
+}
+
+/* カスタム: 細くて黒色のスクロールバー */
+@layer base {
+  /* WebKit系ブラウザ（Chrome, Safari, Edge） */
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  *::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 2px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s ease;
+  }
+  
+  *::-webkit-scrollbar-thumb:hover {
+    background: #4d4d4d;
+    background-clip: padding-box;
+  }
+  
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #333333 transparent;
+  }
+  
+  /* Firefox ホバー時の色変更（JavaScriptで実装する必要があるため、CSSのみでは限界あり） */
+  *:hover {
+    scrollbar-color: #4d4d4d transparent;
+  }
+}
+
+/* 画面幅1500px時の棚名コンテナの幅を上限に固定 */
+@layer components {
+  /* 画面幅1500px時: padding 32px (16px * 2), gap 8px, サイドバー 25%, 棚名コンテナ 75% */
+  /* 利用可能幅: 1500px - 32px = 1468px, グリッド幅: 1468px - 8px = 1460px */
+  /* サイドバー幅: 1460px * 3/12 = 365px */
+  /* 棚名コンテナ幅: 1460px * 9/12 = 1095px */
+  @media (min-width: 1500px) {
+    .shelf-layout-container.grid-cols-12 {
+      grid-template-columns: 365px 1095px 1fr;
+    }
+    
+    .shelf-layout-container.grid-cols-12 > aside.col-span-3 {
+      grid-column: 1;
+    }
+    
+    .shelf-layout-container.grid-cols-12 > section.col-span-9 {
+      grid-column: 2;
+    }
+  }
+
+  /* 棚名コンテナを折りたたんでいる時のカードグリッド（最大9枚） */
+  .compact-shelves-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
+  @media (min-width: 640px) {
+    .compact-shelves-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .compact-shelves-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .compact-shelves-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .compact-shelves-grid {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 1536px) {
+    .compact-shelves-grid {
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 1700px) {
+    .compact-shelves-grid {
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+    }
+  }
+
+  /* 通常の棚表示時のカードグリッド */
+  .normal-shelves-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  @media (min-width: 640px) {
+    .normal-shelves-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .normal-shelves-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .normal-shelves-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .normal-shelves-grid {
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
+  }
+
+  /* 700px以下ではカードを4列に */
+  @media (max-width: 700px) {
+    .compact-shelves-grid,
+    .normal-shelves-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 701px) and (max-width: 750px) {
+    .normal-shelves-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* 画面幅751px以上では検索パネルを右上に配置 */
+  @media (min-width: 751px) {
+    .mobile-search-panel {
+      display: none;
+    }
+    
+    .desktop-search-panel {
+      display: block;
+    }
+    
+    .shelf-header-row {
+      align-items: flex-start;
+    }
+    
+    .desktop-search-panel {
+      align-self: flex-start;
+    }
+  }
+  
+  @media (max-width: 750px) {
+    .desktop-search-panel {
+      display: none;
+    }
+    
+    .mobile-search-panel {
+      display: block;
+    }
+  }
+
+  /* 画面幅850px以上では棚名と検索パネルを横並びに */
+  @media (min-width: 850px) {
+    .shelf-header-layout {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 0;
+    }
+  }
+
+  /* 画面幅750px以下ではサイドバーを非表示、ギャラリーコンテナを全幅に */
+  @media (max-width: 750px) {
+    .mobile-shelf-sidebar {
+      display: none;
+    }
+    
+    .mobile-shelf-section {
+      grid-column: 1 / -1 !important;
+    }
+    
+    .mobile-shelf-selector {
+      display: block;
+    }
+  }
+  
+  @media (min-width: 751px) {
+    .mobile-shelf-selector {
+      display: none;
+    }
+  }
+
+  /* 639px以下ではリスト名のフォントサイズを小さく */
+  @media (max-width: 639px) {
+    .shelf-name-text {
+      font-size: 2.5rem;
+      line-height: 1.2;
+    }
+  }
 }
 

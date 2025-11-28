@@ -284,18 +284,18 @@ function ShelfList({
     const { active, over } = event
 
     if (active.id !== over?.id) {
-      const oldIndex = shelves.findIndex((shelf) => shelf.id === active.id)
-      const newIndex = shelves.findIndex((shelf) => shelf.id === over?.id)
-      const newShelves = arrayMove(shelves, oldIndex, newIndex)
-      
-      // サーバーに並び順を保存
-      const shelfIds = newShelves.map(shelf => shelf.id)
-      const fd = new FormData()
-      fd.set('shelfIds', JSON.stringify(shelfIds))
-      
-      // 非同期でサーバー更新（楽観的更新）
-      reorderShelves(fd)
-      
+        const oldIndex = shelves.findIndex((shelf) => shelf.id === active.id)
+        const newIndex = shelves.findIndex((shelf) => shelf.id === over?.id)
+        const newShelves = arrayMove(shelves, oldIndex, newIndex)
+        
+        // サーバーに並び順を保存
+        const shelfIds = newShelves.map(shelf => shelf.id)
+        const fd = new FormData()
+        fd.set('shelfIds', JSON.stringify(shelfIds))
+        
+        // 非同期でサーバー更新（楽観的更新）
+        reorderShelves(fd)
+        
       setShelves(newShelves)
     }
   }
@@ -500,7 +500,7 @@ function ShelfView({ onShelfItemsChange, currentTrack }: { onShelfItemsChange: (
   }
 
   if (!selectedShelfId) {
-    return <div className="text-sm text-muted-foreground">棚を選択してください</div>
+    return <div className="text-sm text-muted-foreground">リストを作成し、選択してください</div>
   }
 
   return (

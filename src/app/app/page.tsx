@@ -8,14 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog"
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
-import { Share2, GripVertical, MessageCircle, Trash2, ExternalLink, Copy, StickyNote, Heart, Link as LinkIcon, Users, Settings, Music, PanelLeftClose, PanelLeftOpen, Plus, Pen, ChevronDown } from "lucide-react"
+import { Play, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
+import { Share2, GripVertical, MessageCircle, Trash2, ExternalLink, Copy, StickyNote, Heart, Link as LinkIcon, Users, Settings, Music, PanelLeftClose, PanelLeftOpen, Plus, Pen, ChevronDown, List } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import GlobalPlayer from "@/components/GlobalPlayer"
 import { Toaster } from "@/components/ui/toaster"
-import { SpotifyReauthAction } from "@/components/ui/toast"
-import { showSpotifyReauthToast } from "@/hooks/use-toast"
 import { useToast } from "@/hooks/use-toast"
 import { useGlobalPlayer } from "@/hooks/useGlobalPlayer"
 import CommentModal from '@/components/comments/CommentModal'
@@ -126,7 +125,8 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
                   <input 
                     name="name" 
                     placeholder="新しいギャラリー名" 
-                    className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border border-gray-600 focus:border-white" 
+                    className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border-0" 
+                    style={{ border: 'none' }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') setExpand(false)
                     }}
@@ -171,7 +171,8 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
               <input
                 name="name"
                 placeholder="新しいギャラリー名"
-                className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border border-gray-600 focus:border-white"
+                className="w-full rounded px-3 py-2 pr-12 text-base bg-black text-white outline-none border-0"
+                style={{ border: 'none' }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') handleClose()
                   if (e.key === 'Enter') {
@@ -240,6 +241,159 @@ function ShelfCreateForm({ compact = false }: { compact?: boolean }) {
   )
 }
 
+function ShelfSelectorDropdown({ 
+  shelves, 
+  selectedShelfId, 
+  onShelfSelect,
+  onCreateShelf
+}: { 
+  shelves: Shelf[]
+  selectedShelfId: string | null
+  onShelfSelect: (id: string) => void
+  onCreateShelf: (name: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [newShelfName, setNewShelfName] = useState('')
+  const [pending, setPending] = useState(false)
+
+  const handleCreate = async () => {
+    if (!newShelfName.trim()) return
+    setPending(true)
+    try {
+      await onCreateShelf(newShelfName.trim())
+      setNewShelfName('')
+      setCreateDialogOpen(false)
+      setOpen(false)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-2 px-3 py-2 text-white rounded-md transition-colors"
+            style={{ backgroundColor: '#333333', border: 'none' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#333333' }}
+          >
+            <List className="h-4 w-4" />
+            <span className="hidden sm:inline text-sm">{selectedShelfId ? shelves.find(s => s.id === selectedShelfId)?.name || '選択' : '選択'}</span>
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56 bg-[#1a1a1a] border-[#333333] text-white" align="end" side="top" style={{ borderColor: '#333333' }}>
+          {shelves.map((shelf) => (
+            <DropdownMenuItem
+              key={shelf.id}
+              onClick={() => {
+                onShelfSelect(shelf.id)
+                setOpen(false)
+              }}
+              className="cursor-pointer text-white"
+              style={{ 
+                backgroundColor: selectedShelfId === shelf.id ? '#4d4d4d' : 'transparent'
+              }}
+              onMouseEnter={(e) => { 
+                if (selectedShelfId !== shelf.id) {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = '#333333'
+                }
+              }}
+              onMouseLeave={(e) => { 
+                if (selectedShelfId !== shelf.id) {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
+                } else {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = '#4d4d4d'
+                }
+              }}
+            >
+              {shelf.name}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator style={{ backgroundColor: '#333333' }} />
+          <DropdownMenuItem
+            onClick={() => {
+              setCreateDialogOpen(true)
+            }}
+            className="cursor-pointer text-white hover:text-white"
+            style={{ backgroundColor: 'transparent', color: '#ffffff' }}
+            onMouseEnter={(e) => { 
+              (e.currentTarget as HTMLElement).style.backgroundColor = '#333333'
+              ;(e.currentTarget as HTMLElement).style.color = '#ffffff'
+            }}
+            onMouseLeave={(e) => { 
+              (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
+              ;(e.currentTarget as HTMLElement).style.color = '#ffffff'
+            }}
+          >
+            <Plus className="h-4 w-4 mr-2" style={{ color: '#ffffff' }} />
+            新しい棚を作成
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-[#1a1a1a] border-[#333333] text-white">
+          <DialogHeader>
+            <DialogTitle>棚を作成</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              新しい棚を作成して楽曲を整理します
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <input
+              type="text"
+              value={newShelfName}
+              onChange={(e) => setNewShelfName(e.target.value)}
+              placeholder="新しいギャラリー名"
+              className="w-full px-3 py-2 bg-[#111111] border-0 rounded-md text-white placeholder-gray-500 focus:outline-none"
+              style={{ border: 'none' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreate()
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateDialogOpen(false)
+                  setNewShelfName('')
+                }}
+                className="px-4 py-2 rounded-md text-white transition-colors"
+                style={{ backgroundColor: '#4d4d4d', color: '#ffffff' }}
+                onMouseEnter={(e) => { 
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#666666'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = '#ffffff'
+                }}
+                onMouseLeave={(e) => { 
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#4d4d4d'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = '#ffffff'
+                }}
+              >
+                キャンセル
+              </button>
+              <Button
+                type="button"
+                onClick={handleCreate}
+                disabled={pending || !newShelfName.trim()}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {pending ? "作成中..." : "作成"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 export default function AppHome() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -247,7 +401,6 @@ export default function AppHome() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [currentShelfItems, setCurrentShelfItems] = useState<any[]>([])
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0)
-  const [needsReauth, setNeedsReauth] = useState(false)
   const [shelves, setShelves] = useState<Shelf[]>([])
   const [selectedShelfId, setSelectedShelfId] = useState<string | null>(null)
   const [compactShelves, setCompactShelves] = useState<boolean>(false)
@@ -297,52 +450,6 @@ export default function AppHome() {
     }
   }, [router])
 
-  useEffect(() => {
-    // 認証成功時の処理
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search)
-      if (urlParams.get('auth_success') === 'true') {
-        // 認証成功時はlocalStorageをクリア
-        localStorage.removeItem('spotify:reauth-required')
-        setNeedsReauth(false)
-        // URLパラメータをクリア
-        const newUrl = new URL(window.location.href)
-        newUrl.searchParams.delete('auth_success')
-        window.history.replaceState({}, '', newUrl.toString())
-        return
-      }
-      
-      // restore persisted flag
-      const f = localStorage.getItem('spotify:reauth-required')
-      if (f === '1') setNeedsReauth(true)
-    }
-    const onRequire = () => {
-      setNeedsReauth(true)
-      try { localStorage.setItem('spotify:reauth-required', '1') } catch {}
-    }
-    const onCleared = () => {
-      setNeedsReauth(false)
-      try { localStorage.removeItem('spotify:reauth-required') } catch {}
-    }
-    const onSettingsOpen = async () => {
-      // 画面遷移時に有効トークンがあるなら消す
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = (session as any)?.provider_token || (session as any)?.providerToken
-        if (token) {
-          onCleared()
-        }
-      } catch {}
-    }
-    window.addEventListener('spotify:reauth-required', onRequire as EventListener)
-    window.addEventListener('spotify:reauth-cleared', onCleared as EventListener)
-    window.addEventListener('route:settings-open', onSettingsOpen as EventListener)
-    return () => {
-      window.removeEventListener('spotify:reauth-required', onRequire as EventListener)
-      window.removeEventListener('spotify:reauth-cleared', onCleared as EventListener)
-      window.removeEventListener('route:settings-open', onSettingsOpen as EventListener)
-    }
-  }, [])
 
 
   if (loading) {
@@ -450,10 +557,10 @@ export default function AppHome() {
   }
 
   return (
-    <div className="relative min-h-screen bg-black">
-      <main className="px-4 pt-3 pb-32">
+    <div className="relative h-screen bg-black text-white overflow-hidden">
+      <main className="flex flex-col h-full px-4 pt-3 pb-0 overflow-hidden">
         <div className="flex justify-between items-center mb-3">
-          <h1 className="text-2xl font-bold text-white">Music Library</h1>
+          <h1 className="text-3xl font-bold text-white" style={{ fontFamily: '"Science Gothic", sans-serif', fontWeight: 600, fontOpticalSizing: 'auto', fontStyle: 'normal', fontVariationSettings: '"slnt" 0, "wdth" 100, "CTRS" 0', letterSpacing: '0.1em' }}>Music Library</h1>
           <div className="flex items-center gap-3">
             <Button asChild variant="ghost" size="icon" className="relative group text-white hover:text-gray-200 hover:scale-110 hover:bg-transparent transition-all duration-200 [&>svg]:!h-[1.6rem] [&>svg]:!w-[1.6rem]">
               <Link href="/app/friends">
@@ -469,11 +576,8 @@ export default function AppHome() {
               </Link>
             </Button>
             <Button asChild variant="ghost" size="icon" className="group relative text-white hover:text-gray-200 hover:scale-110 hover:bg-transparent transition-all duration-200 [&>svg]:!h-[1.6rem] [&>svg]:!w-[1.6rem]">
-              <Link href="/app/settings" onClick={() => window.dispatchEvent(new CustomEvent('route:settings-open'))}>
+              <Link href="/app/settings">
                 <Settings />
-                {needsReauth && (
-                  <span className="absolute -top-1 -right-1 inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                )}
                 <span className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-transparent">
                   設定
                 </span>
@@ -490,61 +594,112 @@ export default function AppHome() {
           </div>
         </div>
 
-        <div className={`${compactShelves ? 'grid grid-cols-[64px_1fr]' : 'grid grid-cols-12'} gap-2`}>
+        <div className="flex-1 overflow-hidden pb-4">
+          <div className={`${compactShelves ? 'grid grid-cols-[64px_1fr]' : 'grid grid-cols-12'} gap-2 h-full shelf-layout-container`}>
           {/* Left: Shelves */}
-          <aside className={`${compactShelves ? '' : 'col-span-3'} ${compactShelves ? 'px-2 py-3' : 'p-3'} rounded-md h-[calc(100vh-5rem)] overflow-y-auto`} style={{ backgroundColor: '#1a1a1a', width: compactShelves ? 64 : undefined }}>
-            <div className={`flex items-center mb-3 ${compactShelves ? 'justify-end' : 'justify-between'}`}>
-              {!compactShelves && <h2 className="font-semibold text-white">マイギャラリー</h2>}
-              <button
-                type="button"
-                className="text-base px-0 py-0 flex items-center gap-2 transition-colors hover:text-white focus:text-white focus:outline-none"
-                style={{ color: '#b3b3b3' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ffffff' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
-                onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
-                onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
-                onClick={() => {
-                  setCompactShelves(v => {
-                    const nv = !v
-                    try { localStorage.setItem('ui:compact-shelves', nv ? '1' : '0') } catch {}
-                    return nv
-                  })
-                }}
-                aria-label="サイドバー幅切替"
-                title={compactShelves ? '通常表示にする' : '細い表示にする'}
-              >
-                {compactShelves ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-              </button>
+          <aside className={`${compactShelves ? '' : 'col-span-3'} ${compactShelves ? 'px-2 py-3' : 'p-3'} rounded-md h-full overflow-y-auto mobile-shelf-sidebar`} style={{ backgroundColor: '#1a1a1a', width: compactShelves ? 64 : undefined }}>
+            <div className="flex flex-col h-full">
+              <div className={`flex items-center mb-3 ${compactShelves ? 'justify-end' : 'justify-between'}`}>
+                {!compactShelves && <h2 className="font-semibold text-white">マイギャラリー</h2>}
+                <button
+                  type="button"
+                  className="text-base px-0 py-0 flex items-center gap-2 transition-colors hover:text-white focus:text-white focus:outline-none"
+                  style={{ color: '#b3b3b3' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ffffff' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
+                  onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
+                  onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#b3b3b3' }}
+                  onClick={() => {
+                    setCompactShelves(v => {
+                      const nv = !v
+                      try { localStorage.setItem('ui:compact-shelves', nv ? '1' : '0') } catch {}
+                      return nv
+                    })
+                  }}
+                  aria-label="サイドバー幅切替"
+                  title={compactShelves ? '通常表示にする' : '細い表示にする'}
+                >
+                  {compactShelves ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-1">
+                <ShelfList 
+                  shelves={shelves}
+                  setShelves={setShelves}
+                  selectedShelfId={selectedShelfId}
+                  setSelectedShelfId={setSelectedShelfId}
+                  compact={compactShelves}
+                  onShelfSelect={(id) => {
+                    const event = new CustomEvent('shelf:selected', { detail: { shelfId: id } })
+                    window.dispatchEvent(event)
+                  }} 
+                />
+                <ShelfCreateForm compact={compactShelves} />
+              </div>
             </div>
-            <ShelfList 
-              shelves={shelves}
-              setShelves={setShelves}
-              selectedShelfId={selectedShelfId}
-              setSelectedShelfId={setSelectedShelfId}
-              compact={compactShelves}
-              onShelfSelect={(id) => {
-                const event = new CustomEvent('shelf:selected', { detail: { shelfId: id } })
-                window.dispatchEvent(event)
-              }} 
-            />
-            <ShelfCreateForm compact={compactShelves} />
           </aside>
 
           {/* Center: Shelf View with Search */}
-          <section className={`${compactShelves ? '' : 'col-span-9'} pt-1 pr-3 pb-3 pl-3 min-h-[300px] rounded-md`} style={{ backgroundColor: '#1a1a1a' }}>
-            <div className="flex justify-between items-start mb-3 mt-2">
-              <h2 className="font-semibold flex items-baseline gap-4 flex-1 min-w-0">
-                <span className="text-6xl font-semibold truncate text-white">{selectedShelfId ? shelves.find(s => s.id === selectedShelfId)?.name || '棚ビュー' : '棚ビュー'}</span>
-            <span className="text-base text-muted-foreground flex-shrink-0">{currentShelfItems.length} 曲</span>
-            </h2>
-            <SearchPanel />
+          <section className={`${compactShelves ? '' : 'col-span-9 shelf-name-container'} pt-1 pb-3 rounded-md h-full flex flex-col overflow-hidden mobile-shelf-section`} style={{ backgroundColor: '#1a1a1a' }}>
+            <div className="shelf-header-layout flex flex-col justify-between items-start mb-0 mt-2 gap-3 pr-4">
+              <div className="flex items-start gap-4 flex-1 min-w-0 w-full shelf-header-row">
+                <h2 className="font-semibold flex items-baseline gap-4 flex-1 min-w-0">
+                  <span className="text-6xl font-semibold truncate text-white shelf-name-text">{selectedShelfId ? shelves.find(s => s.id === selectedShelfId)?.name || '棚ビュー' : '棚ビュー'}</span>
+                  <span className="text-base text-muted-foreground flex-shrink-0">{currentShelfItems.length} 曲</span>
+                </h2>
+                <div className="mobile-shelf-selector flex-shrink-0">
+                  <ShelfSelectorDropdown 
+                    shelves={shelves}
+                    selectedShelfId={selectedShelfId}
+                    onShelfSelect={(id) => {
+                      setSelectedShelfId(id)
+                      const event = new CustomEvent('shelf:selected', { detail: { shelfId: id } })
+                      window.dispatchEvent(event)
+                      if (typeof window !== 'undefined' && user) {
+                        localStorage.setItem(`selectedShelfId-${user.id}`, id)
+                      }
+                    }}
+                    onCreateShelf={async (name: string) => {
+                      const formData = new FormData()
+                      formData.set('name', name)
+                      const { createShelf } = await import('./actions')
+                      const res = await createShelf(formData) as any
+                      if (res?.shelf) {
+                        const shelf = res.shelf as { id: string; name: string }
+                        const addEvent = new CustomEvent('shelf:added', { detail: shelf })
+                        window.dispatchEvent(addEvent)
+                        setSelectedShelfId(shelf.id)
+                        const event = new CustomEvent('shelf:selected', { detail: { shelfId: shelf.id } })
+                        window.dispatchEvent(event)
+                        if (typeof window !== 'undefined' && user) {
+                          localStorage.setItem(`selectedShelfId-${user.id}`, shelf.id)
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                <div className="desktop-search-panel flex-shrink-0">
+                  <SearchPanel />
+                </div>
+              </div>
+              <div className="mobile-search-panel w-full">
+                <SearchPanel />
+              </div>
             </div>
-            <ShelfView onShelfItemsChange={setCurrentShelfItems} currentTrack={currentTrack} toast={toast} user={user} />
+            <div className="flex-1 overflow-y-auto pt-3 pl-3">
+              <ShelfView onShelfItemsChange={setCurrentShelfItems} currentTrack={currentTrack} toast={toast} user={user} compactShelves={compactShelves} />
+            </div>
           </section>
+        </div>
         </div>
       </main>
 
-      <GlobalPlayer currentShelfItems={currentShelfItems} onShelfItemsChange={setGlobalShelfItems} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 pb-4 pointer-events-none flex justify-center" style={{ bottom: '18px' }}>
+        <div className="pointer-events-auto w-full flex justify-center px-4">
+          <GlobalPlayer currentShelfItems={currentShelfItems} onShelfItemsChange={setGlobalShelfItems} />
+        </div>
+      </div>
+
       <Toaster />
     </div>
   )
@@ -760,9 +915,47 @@ function ShelfList({
         .eq('user_id', user.id)
         .order('sort_order', { ascending: true })
       setShelves(data || [])
-      if (data?.[0] && !selectedShelfId) {
-        setSelectedShelfId(data[0].id)
-        onShelfSelect(data[0].id)
+
+      if (!data || data.length === 0) {
+        try {
+          const fd = new FormData()
+          fd.set('name', 'リスト1')
+          const { createShelf } = await import('./actions')
+          const res = await createShelf(fd)
+          if (res?.shelf) {
+            setShelves([res.shelf])
+            setSelectedShelfId(res.shelf.id)
+            onShelfSelect(res.shelf.id)
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('selected-shelf-id', res.shelf.id)
+              } catch (e) {
+                console.warn('Failed to persist default shelf id:', e)
+              }
+            }
+            window.dispatchEvent(new CustomEvent('shelf:added', { detail: res.shelf }))
+          }
+        } catch (error) {
+          console.error('Failed to create default shelf:', error)
+        }
+        return
+      }
+
+      const storedSelectedId = typeof window !== 'undefined' ? localStorage.getItem('selected-shelf-id') : null
+      const initialShelfId = storedSelectedId && data.some(shelf => shelf.id === storedSelectedId)
+        ? storedSelectedId
+        : data[0]?.id
+
+      if (initialShelfId) {
+        setSelectedShelfId(initialShelfId)
+        onShelfSelect(initialShelfId)
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('selected-shelf-id', initialShelfId)
+          } catch (e) {
+            console.warn('Failed to persist selected shelf id:', e)
+          }
+        }
       }
     }
     load()
@@ -831,6 +1024,13 @@ function ShelfList({
                 count={counts[shelf.id] || 0}
               onSelect={() => {
                 setSelectedShelfId(shelf.id)
+                if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.setItem('selected-shelf-id', shelf.id)
+                  } catch (e) {
+                    console.warn('Failed to persist selected shelf id:', e)
+                  }
+                }
                 onShelfSelect(shelf.id)
               }}
                 onDelete={() => {
@@ -1328,27 +1528,6 @@ function SearchPanel() {
     }
   }, [searchTimeout])
 
-  // 入力時に認証切れを検知して通知（多重通知を抑制）
-  const checkAuthAndNotify = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.provider_token
-      if (!token) {
-        if (!notifiedAuthMissing) {
-          window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-          toast({ title: 'Spotifyに再ログインしてください' })
-          setNotifiedAuthMissing(true)
-        }
-        return false
-      }
-      // トークンが復帰していれば通知状態を解除
-      if (notifiedAuthMissing) setNotifiedAuthMissing(false)
-      return true
-    } catch {
-      return false
-    }
-  }
-
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value
     setQuery(v)
@@ -1359,50 +1538,42 @@ function SearchPanel() {
     }
     
     if (v.trim()) {
-      void checkAuthAndNotify()
-      
       // 500ms後に自動検索を実行
       const timeout = setTimeout(async () => {
         await performSearch(v)
       }, 500)
       setSearchTimeout(timeout)
     } else {
-      setNotifiedAuthMissing(false)
       setResults([])
       setIsDropdownOpen(false)
     }
   }
 
   const performSearch = async (searchQuery: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.provider_token
     if (!searchQuery.trim()) return
-    if (!token) {
-      window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-      toast({ title: 'Spotifyに再ログインしてください' })
-      return
-    }
 
-    const params = new URLSearchParams({ q: searchQuery, type: 'track', limit: '10' })
-    const res = await fetch(`https://api.spotify.com/v1/search?${params}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-      toast({ title: 'Spotifyに再ログインしてください' })
-      return
+    try {
+      const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(searchQuery)}&limit=10`)
+      if (!res.ok) {
+        throw new Error('Search failed')
+      }
+      const data = await res.json()
+      const list = (data.tracks || []).map((it: any) => ({
+        id: it.id,
+        name: it.name,
+        artists: it.artists,
+        album: it.album,
+        image: it.image,
+        type: 'track',
+        spotify_id: it.spotify_id,
+        spotify_type: it.spotify_type,
+      }))
+      setResults(list)
+      setIsDropdownOpen(true)
+    } catch (error) {
+      console.error('Search error:', error)
+      toast({ title: '検索に失敗しました', variant: 'destructive' })
     }
-    const json = await res.json()
-    const list = (json['tracks']?.items || []).map((it: any) => ({
-      id: it.id,
-      name: it.name,
-      artists: (it.artists || []).map((a: any) => a.name).join(', '),
-      album: it.album?.name || '',
-      image: it.album?.images?.[0]?.url || null,
-      type: 'track',
-    }))
-    setResults(list)
-    setIsDropdownOpen(true)
   }
 
   async function onSearch(e: React.FormEvent) {
@@ -1421,8 +1592,8 @@ function SearchPanel() {
       console.log('No shelf selected')
       setAdding(null)
       toast({
-        title: '棚を選択してください',
-        description: '楽曲を追加するには、まず棚を選択してください。',
+        title: 'リストを作成し、選択してください',
+        description: '楽曲を追加するには、まずリストを作成してから選択してください。',
         variant: 'destructive'
       })
       return 
@@ -1433,8 +1604,8 @@ function SearchPanel() {
       console.log('No shelfId found')
       setAdding(null)
       toast({
-        title: '棚を選択してください',
-        description: '楽曲を追加するには、まず棚を選択してください。',
+        title: 'リストを作成し、選択してください',
+        description: '楽曲を追加するには、まずリストを作成してから選択してください。',
         variant: 'destructive'
       })
       return 
@@ -1442,8 +1613,8 @@ function SearchPanel() {
     
     const fd = new FormData()
     fd.set('shelfId', shelfId)
-    fd.set('spotifyType', 'track')
-    fd.set('spotifyId', r.id)
+    fd.set('spotifyType', r.spotify_type || 'track')
+    fd.set('spotifyId', r.spotify_id || r.id)
     fd.set('title', r.name)
     fd.set('artist', r.artists || '')
     fd.set('album', r.album || '')
@@ -1499,7 +1670,7 @@ function SearchPanel() {
   )
 }
 
-function ShelfView({ onShelfItemsChange, currentTrack, toast, user }: { onShelfItemsChange: (items: any[]) => void, currentTrack?: any, toast: any, user: any }) {
+function ShelfView({ onShelfItemsChange, currentTrack, toast, user, compactShelves }: { onShelfItemsChange: (items: any[]) => void, currentTrack?: any, toast: any, user: any, compactShelves?: boolean }) {
   const [selectedShelfId, setSelectedShelfId] = useState<string>("")
   const [items, setItems] = useState<any[]>([])
   const [open, setOpen] = useState(false)
@@ -1542,9 +1713,23 @@ function ShelfView({ onShelfItemsChange, currentTrack, toast, user }: { onShelfI
       }
     }
 
+    const onItemDeleted = (e: any) => {
+      if (e.detail?.itemId) {
+        // 即座にアイテムを削除
+        setItems((currentItems) => {
+          const newItems = currentItems.filter((i) => i.id !== e.detail.itemId)
+          // 次のレンダリングサイクルでグローバル状態を更新
+          setTimeout(() => onShelfItemsChange(newItems), 0)
+          return newItems
+        })
+      }
+    }
+
     window.addEventListener('shelf:item-added', onItemAdded)
+    window.addEventListener('shelf:item-deleted', onItemDeleted)
     return () => {
       window.removeEventListener('shelf:item-added', onItemAdded)
+      window.removeEventListener('shelf:item-deleted', onItemDeleted)
     }
   }, [selectedShelfId, onShelfItemsChange])
 
@@ -1632,7 +1817,7 @@ function ShelfView({ onShelfItemsChange, currentTrack, toast, user }: { onShelfI
   }
 
   if (!selectedShelfId) {
-    return <div className="text-base text-muted-foreground">棚を選択してください</div>
+    return <div className="text-base text-muted-foreground">リストを作成し、選択してください</div>
   }
 
   return (
@@ -1644,7 +1829,7 @@ function ShelfView({ onShelfItemsChange, currentTrack, toast, user }: { onShelfI
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={items.map(item => item.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          <div className={`grid gap-3 ${compactShelves ? 'compact-shelves-grid' : 'normal-shelves-grid'}`}>
             {items.map((item) => {
               const isCurrentlyPlaying = currentTrack && 
                 `spotify:${item.spotify_type}:${item.spotify_id}` === currentTrack.uri
@@ -1751,8 +1936,8 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
           })
         }}
         animate={isCurrentlyPlaying ? {
-          y: [-6, 6, -6],
-          scale: [1, 1.08, 1],
+          y: [-3, 3, -3],
+          scale: [1, 1.04, 1],
           boxShadow: 'none'
         } : {
           y: 0,
@@ -1769,7 +1954,7 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
         }}
       >
         {/* 画像コンテナ */}
-        <div className="relative rounded-lg" style={{ backgroundColor: '#1a1a1a' }}>
+        <div className="relative rounded-lg overflow-hidden" style={{ backgroundColor: '#1a1a1a' }}>
         {item.image_url ? (
           <img 
             src={item.image_url} 
@@ -1788,104 +1973,12 @@ function SortableAlbumCover({ item, onClick, isCurrentlyPlaying, toast }: { item
               <Music className="h-4 w-4 text-white" />
             </div>
           )}
-          {/* Hover overlay: only on image area */}
-          <div className="pointer-events-none absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <div className="absolute inset-0 rounded-lg bg-black/30" />
-            {/* Delete button in top-right corner */}
-            <button
-              className="pointer-events-auto absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-transparent hover:bg-transparent flex items-center justify-center shadow-none transition-colors"
-              title="削除"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowDeleteDialog(true)
-              }}
-            >
-              <Trash2 className="h-4 w-4 text-red-500 transition-transform duration-100 hover:scale-125" strokeWidth={2} />
-            </button>
-            <div className="absolute inset-0 flex items-end justify-center pb-1 px-1">
-              <div className="pointer-events-auto flex items-center gap-1 w-full max-w-full justify-center">
-                <button
-                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
-                  title="外部で開く"
-                  onClick={(e) => { e.stopPropagation(); const url = item.spotify_type && item.spotify_id ? `https://open.spotify.com/${item.spotify_type}/${item.spotify_id}` : undefined; if (url) window.open(url, '_blank') }}
-                >
-                  <ExternalLink className="h-3 w-3" />
-                </button>
-                <button
-                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
-                  title="リンクをコピー"
-                  onClick={(e) => { e.stopPropagation(); const url = item.spotify_type && item.spotify_id ? `https://open.spotify.com/${item.spotify_type}/${item.spotify_id}` : ''; if (url) { navigator.clipboard?.writeText(url); toast({ title: 'リンクをコピーしました' }) } }}
-                >
-                  <LinkIcon className="h-3 w-3" />
-                </button>
-                <button
-                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
-                  title="再生"
-                  onClick={async (e) => { e.stopPropagation();
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const accessToken = (session as any)?.provider_token || (session as any)?.providerToken
-                    if (!accessToken) { 
-                      window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-                      toast({ title: 'Spotifyに再ログインしてください' })
-                      return 
-                    }
-                    try {
-                      // デバイス確認
-                      const devRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
-                        headers: { Authorization: `Bearer ${accessToken}` }
-                      })
-                      const devJson = await devRes.json()
-                      const devices = (devJson?.devices || []) as Array<{ id: string; is_active: boolean }>
-                      if (!devices.length) {
-                        toast({ title: '再生可能なSpotifyデバイスが見つかりません', description: 'Spotifyアプリを起動してください', variant: 'destructive' })
-                        return
-                      }
-                      if (!devices.some(d => d.is_active)) {
-                        const target = devices[0]
-                        await fetch('https://api.spotify.com/v1/me/player', {
-                          method: 'PUT',
-                          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ device_ids: [target.id], play: false })
-                        })
-                      }
-
-                      const body = { uris: [`spotify:track:${item.spotify_id}`] }
-                      const res = await fetch('https://api.spotify.com/v1/me/player/play', {
-                        method: 'PUT',
-                        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                      })
-
-                      if (!res.ok) {
-                        const txt = await res.text()
-                        console.error('Play error:', txt)
-                        toast({ title: '再生に失敗しました', variant: 'destructive' })
-                        return
-                      }
-
-                      window.dispatchEvent(new CustomEvent('track:playing', { detail: { id: item.id, title: item.title, artist: item.artist, album: item.album, image_url: item.image_url, duration_ms: item.duration_ms, shelfItems: undefined } }))
-                    } catch (err) {
-                      console.error('Play error:', err)
-                      toast({ title: '再生に失敗しました', variant: 'destructive' })
-                    }
-                  }}
-                >
-                  <Play className="h-3 w-3" />
-                </button>
-                <button
-                  className="h-6 w-6 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center shadow-sm flex-shrink-0"
-                  title="一時停止"
-                  onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('player:pause')) }}
-                >
-                  <Pause className="h-3 w-3" />
-                </button>
-              </div>
+          <div className="pointer-events-none absolute inset-0 flex items-end">
+            <div className="w-full bg-black/70 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="text-xs font-semibold truncate text-white">{item.title}</div>
+              <div className="text-[11px] text-gray-300 truncate">{item.artist}</div>
             </div>
           </div>
-        </div>
-        <div className="mt-1 px-2 py-1">
-          <div className="text-xs font-medium truncate text-white">{item.title}</div>
-          <div className="text-xs text-muted-foreground truncate">{item.artist}</div>
         </div>
       </motion.div>
       
@@ -2011,179 +2104,32 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
     // @ts-ignore
     const res = await deleteShelfItem(fd)
     if (!res?.error) {
+      // 削除イベントを発火して即座に反映
+      window.dispatchEvent(new CustomEvent('shelf:item-deleted', { 
+        detail: { itemId: item.id } 
+      }))
       onDeleted()
       onOpenChange(false)
     }
   }
-  async function handlePlay(retryCount = 0) {
-    setIsLoading(true)
-    try {
-      console.log(`ホーム再生試行 ${retryCount + 1}回目:`, item.title)
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.provider_token
-      if (!token) {
-        console.log('アクセストークンが見つかりません')
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
-        return
-      }
-      
-      console.log('アクセストークン取得成功')
-      
-      // アクティブデバイスが無いと404が返るため、デバイスを確認して必要なら転送を試みる
-      const devRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      const devJson = await devRes.json()
-      const devices = (devJson?.devices || []) as Array<{ id: string; is_active: boolean }>
-      
-      console.log('デバイス一覧:', devices.length, '個のデバイス')
-      
-      if (!devices.length) {
-        console.log('デバイスが見つかりません')
-        toast({ title: '再生可能なSpotifyデバイスが見つかりません', description: 'Spotifyアプリを起動してください', variant: 'destructive' })
-        return
-      } else if (!devices.some(d => d.is_active)) {
-        console.log('アクティブデバイスが見つからないため、デバイス転送を実行')
-        const target = devices[0]
-        const transferRes = await fetch('https://api.spotify.com/v1/me/player', {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ device_ids: [target.id], play: false })
-        })
-        
-        if (transferRes.ok) {
-          console.log('デバイス転送成功、アクティブデバイス状態を確認します')
-          // デバイス転送後にアクティブデバイスの状態を確認
-          let deviceActive = false
-          let attempts = 0
-          const maxAttempts = 5
-          
-          while (!deviceActive && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            attempts++
-            console.log(`アクティブデバイス確認試行 ${attempts}/${maxAttempts}`)
-            
-            const checkDevicesRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
-              headers: { Authorization: `Bearer ${token}` }
-            })
-            const checkDevicesJson = await checkDevicesRes.json()
-            const checkDevices = (checkDevicesJson?.devices || []) as Array<{ id: string; is_active: boolean }>
-            
-            deviceActive = checkDevices.some(d => d.is_active)
-            console.log('アクティブデバイス状態:', deviceActive)
-          }
-          
-          if (!deviceActive) {
-            console.log('デバイス転送が完了しませんでした、リトライします')
-            if (retryCount < 2) {
-              setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
-              return
-            }
-          }
-        } else {
-          console.log('デバイス転送失敗:', transferRes.status)
-          if (retryCount < 2) {
-            setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
-            return
-          }
-        }
-      } else {
-        console.log('アクティブデバイスが見つかりました')
-      }
-      
-      // トラックの場合はuris、アルバム/プレイリストの場合はcontext_uriを使用
-      const isTrack = item.spotify_type === 'track'
-      const body = isTrack 
-        ? { uris: [`spotify:track:${item.spotify_id}`] }
-        : { context_uri: `spotify:${item.spotify_type}:${item.spotify_id}` }
-      
-      console.log('再生開始:', item.spotify_id, 'isTrack:', isTrack)
-      const response = await fetch(`https://api.spotify.com/v1/me/player/play`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-      
-      console.log('再生レスポンス:', response.status, response.statusText)
-      
-      if (response.status === 401) {
-        console.log('認証エラー、再認証が必要')
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
-        return
-      }
-      
-      if (response.status === 404) {
-        console.log('デバイスが見つからない、リトライします')
-        if (retryCount < 2) {
-          console.log(`${1000 * (retryCount + 1)}ms後にリトライします`)
-          setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
-          return
-        } else {
-          console.log('リトライ回数上限に達しました')
-          toast({ title: 'エラー', description: 'デバイスが見つかりません。Spotifyアプリを開いてください。', variant: 'destructive' })
-          return
-        }
-      }
-      
-      if (!response.ok) {
-        const error = await response.text()
-        console.log('再生失敗:', response.status, response.statusText)
-        console.log('エラー詳細:', error)
-        
-        // 初回再生時の一般的な問題（デバイス未準備）の場合はリトライ
-        if (response.status === 400 && retryCount < 2) {
-          console.log('初回再生エラー、リトライします')
-          setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
-          return
-        }
-        
-        toast({ title: '再生に失敗しました', description: 'Spotifyアプリを開いてからもう一度お試しください', variant: 'destructive' })
-      } else {
-        console.log('再生成功')
-      }
-    } catch (error) {
-      console.error('Play error:', error)
-      if (retryCount < 2) {
-        console.log('例外エラー、リトライします')
-        setTimeout(() => handlePlay(retryCount + 1), 1000 * (retryCount + 1))
-        return
-      }
-      toast({ title: '再生エラー', description: '予期しないエラーが発生しました', variant: 'destructive' })
-    } finally {
-      setIsLoading(false)
-    }
+  function handlePlay() {
+    if (!item.spotify_id || !item.spotify_type) return
+    
+    window.dispatchEvent(new CustomEvent('track:playing', { 
+      detail: { 
+        id: item.spotify_id, 
+        title: item.title, 
+        artist: item.artist, 
+        album: item.album, 
+        image_url: item.image_url, 
+        duration_ms: item.duration_ms || 0,
+        spotify_id: item.spotify_id,
+        spotify_type: item.spotify_type,
+        shelfItems: shelfItems
+      } 
+    }))
   }
-  async function handlePause() {
-    setIsLoading(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.provider_token
-      if (!token) {
-        window.dispatchEvent(new CustomEvent('spotify:reauth-required'))
-        toast({ title: 'Spotifyに再ログインしてください' })
-        return
-      }
-      
-      const response = await fetch(`https://api.spotify.com/v1/me/player/pause`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      
-      if (!response.ok) {
-        const error = await response.text()
-        console.error('Pause error:', error)
-        toast({ title: '一時停止に失敗しました', variant: 'destructive' })
-      }
-    } catch (error) {
-      console.error('Pause error:', error)
-      toast({ title: '一時停止に失敗しました', variant: 'destructive' })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+
   // 次へ / 前へ は一旦未実装
   // デバイス更新ロジックは不要
   function spotifyUrl() {
@@ -2191,9 +2137,9 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   }
 
   async function handleMemoSave() {
-    if (memo.length > 15) {
+    if (memo.length > 16) {
       // メモの文字数制限エラーはtoastで表示
-      console.error("メモは15文字以内で入力してください")
+      console.error("メモは16文字以内で入力してください")
       return
     }
 
@@ -2217,11 +2163,15 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[520px] pb-3 bg-[#1a1a1a] text-white [&>button]:text-[#666666] [&>button:hover]:text-red-500 [&>button]:bg-transparent [&>button:hover]:bg-transparent">
+        <DialogContent className="sm:max-w-[520px] pb-3 bg-[#1a1a1a] text-white [&>button]:text-[#666666] [&>button:hover]:text-red-500 [&>button]:bg-transparent [&>button:hover]:bg-transparent overflow-hidden">
           <div className="relative">
             <DialogHeader>
-              <DialogTitle className="flex-1 min-w-0 text-white">{item.title}</DialogTitle>
-              <DialogDescription>楽曲の詳細情報と操作</DialogDescription>
+              <DialogTitle className="flex-1 min-w-0 text-white whitespace-normal break-words leading-tight text-lg font-semibold">
+                {item.title}
+              </DialogTitle>
+              <DialogDescription className="whitespace-normal break-words text-sm text-muted-foreground">
+                楽曲の詳細情報と操作
+              </DialogDescription>
             </DialogHeader>
             <div className="flex gap-4">
               {item.image_url ? (
@@ -2233,7 +2183,9 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                 <div className="flex items-start justify-between min-w-0">
                   <div className="flex-1 min-w-0">
                     <div className="text-base text-muted-foreground">アーティスト</div>
-                    <div className="text-base truncate">{item.artist}</div>
+                    <div className="text-base text-white whitespace-normal break-words">
+                      {item.artist}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 -mt-1 flex-shrink-0 ml-2">
                     <button
@@ -2257,7 +2209,9 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                 {item.album ? (
                   <>
                     <div className="text-base text-muted-foreground mt-2">アルバム</div>
-                    <div className="text-base truncate">{item.album}</div>
+                    <div className="text-base whitespace-normal break-words">
+                      {item.album}
+                    </div>
                   </>
                 ) : (
                   <>
@@ -2280,7 +2234,21 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
               onClick={handlePrevious}
               disabled={!hasPrevious}
               aria-label="前の曲"
-              className={`absolute top-1/2 -translate-y-1/2 left-0 -translate-x-[calc(50%+12px)] text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors ${hasPrevious ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
+              className="absolute top-1/2 -translate-y-1/2 left-0 -translate-x-[calc(50%+12px)] text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors cursor-pointer"
+              style={{ 
+                color: hasPrevious ? '#e6e6e6' : '#666666',
+                cursor: hasPrevious ? 'pointer' : 'not-allowed'
+              }}
+              onMouseEnter={(e) => {
+                if (hasPrevious) {
+                  (e.currentTarget as HTMLButtonElement).style.color = '#999999'
+                } else {
+                  (e.currentTarget as HTMLButtonElement).style.color = '#4d4d4d'
+                }
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = hasPrevious ? '#e6e6e6' : '#666666'
+              }}
             >
               ‹
             </button>
@@ -2289,7 +2257,21 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
               onClick={handleNext}
               disabled={!hasNext}
               aria-label="次の曲"
-              className={`absolute top-1/2 -translate-y-1/2 right-0 translate-x-[calc(50%+12px)] text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors ${hasNext ? 'text-gray-500 hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}
+              className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-[calc(50%+12px)] text-4xl leading-none select-none w-8 h-8 grid place-items-center transition-colors cursor-pointer"
+              style={{ 
+                color: hasNext ? '#e6e6e6' : '#666666',
+                cursor: hasNext ? 'pointer' : 'not-allowed'
+              }}
+              onMouseEnter={(e) => {
+                if (hasNext) {
+                  (e.currentTarget as HTMLButtonElement).style.color = '#999999'
+                } else {
+                  (e.currentTarget as HTMLButtonElement).style.color = '#4d4d4d'
+                }
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = hasNext ? '#e6e6e6' : '#666666'
+              }}
             >
               ›
             </button>
@@ -2306,13 +2288,13 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                 type="text"
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
-                placeholder="メモを入力してください（15文字以内）"
-                maxLength={15}
+                placeholder="メモを入力してください（16文字以内）"
+                maxLength={16}
                 className="w-full p-2 border border-[#333333] bg-[#1a1a1a] text-white rounded-md focus:outline-none focus:ring-2 focus:ring-[#666666] focus:border-transparent transition-colors placeholder:text-[#666666]"
               />
               <div className="flex items-center justify-between mt-2">
                 <div className="text-xs text-[#666666]">
-                  {memo.length}/15文字
+                  {memo.length}/16文字
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -2390,20 +2372,6 @@ function ItemDetailDialog({ open, onOpenChange, item, onDeleted, shelfItems, onI
                   </span>
                   <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     再生
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="group flex items-center overflow-hidden w-10 h-10 hover:w-32 transition-all duration-300 rounded-full border-0 bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-                  onClick={handlePause}
-                  disabled={isLoading}
-                  aria-label="一時停止"
-                >
-                  <span className="flex items-center justify-center text-foreground ml-0.75">
-                    <Pause className="h-5 w-5" />
-                  </span>
-                  <span className="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    一時停止
                   </span>
                 </button>
               </div>

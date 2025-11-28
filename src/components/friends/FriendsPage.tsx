@@ -149,7 +149,6 @@ function FriendsPageContent() {
         })
       } else {
         toast({
-          title: "成功",
           description: "フレンド申請を送信しました"
         })
       }
@@ -179,7 +178,6 @@ function FriendsPageContent() {
         })
       } else {
         toast({
-          title: "成功",
           description: "フレンド申請を承認しました"
         })
         // リストを即時更新（楽観的更新）
@@ -238,11 +236,15 @@ function FriendsPageContent() {
         })
       } else {
         toast({
-          title: "成功",
           description: "フレンド申請を拒否しました"
         })
-        // リストを更新
-        setPendingRequests(prev => prev.filter(f => f.friend.id !== friendId))
+        // リストを即時更新（楽観的更新）- 承認ボタンと同じロジック
+        setPendingRequests(prev => prev.filter(req => {
+          const requesterId = req.user.id === profile?.id ? req.friend.id : req.user.id
+          return requesterId !== friendId
+        }))
+        // 通知数を更新
+        setPendingCount(prev => Math.max(0, prev - 1))
       }
     } catch (error) {
       toast({
@@ -270,7 +272,6 @@ function FriendsPageContent() {
         })
       } else {
         toast({
-          title: "成功",
           description: "フレンドを削除しました"
         })
         // リストを更新
@@ -348,7 +349,6 @@ function FriendsPageContent() {
           } catch {}
         }
         toast({
-          title: "成功",
           description: "プロフィールを更新しました"
         })
         // プロフィールを再読み込み
@@ -394,7 +394,6 @@ function FriendsPageContent() {
         })
       } else {
         toast({
-          title: "成功",
           description: message || "仮想フレンド申請をセットアップしました"
         })
         // 申請リストを再読み込み
@@ -448,7 +447,6 @@ function FriendsPageContent() {
         console.log('画像URL更新成功:', result.message)
         console.log('トースト表示開始')
         toast({
-          title: "成功",
           description: result.message || "仮想フレンドの画像URLを更新しました"
         })
         console.log('トースト表示完了')
@@ -483,7 +481,6 @@ function FriendsPageContent() {
       } else {
         console.log('棚追加成功:', result.message)
         toast({
-          title: "成功",
           description: result.message || "仮想フレンドに追加の棚を作成しました"
         })
       }
@@ -517,7 +514,6 @@ function FriendsPageContent() {
       } else {
         console.log('楽曲修正成功:', result.message)
         toast({
-          title: "成功",
           description: result.message || "仮想フレンドの楽曲データを修正しました"
         })
       }
@@ -551,7 +547,6 @@ function FriendsPageContent() {
       } else {
         console.log('楽曲検索修正成功:', result.message)
         toast({
-          title: "成功",
           description: result.message || "楽曲情報を正しく修正しました"
         })
       }
@@ -692,8 +687,8 @@ function FriendsPageContent() {
                             onClick={() => handleGalleryClick(friendUser.id, friendUser.username)}
                             className="bg-[#666666] text-white border-[#666666] hover:bg-[#4d4d4d] hover:text-[#e6e6e6]"
                           >
-                            <Eye className="h-4 w-4 mr-2" />
-                            ギャラリー
+                              <Eye className="h-4 w-4 mr-2" />
+                              ギャラリー
                           </Button>
                           <Button
                             variant="outline"
@@ -755,7 +750,6 @@ function FriendsPageContent() {
                           <div>
                             <div className="font-medium text-white">{requester.display_name}</div>
                             <div className="text-sm text-muted-foreground">@{requester.username}</div>
-                            <Badge variant="secondary">申請中</Badge>
                           </div>
                         </div>
                         <div className="flex gap-2">
